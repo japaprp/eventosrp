@@ -1,0 +1,10 @@
+/vendor/
+/.env
+/.env.*
+!/.env.example
+/secrets/
+/tools/
+*.pem
+*.key
+*service-account*.json
+*.log
