@@ -1,0 +1,20 @@
+[
+ {"label":"uma diária exata","start":"2026-10-02T09:00","end":"2026-10-03T09:00","plan":"daily","daily":"1800.00","weekend":null,"days":1,"total":"1800.00"},
+ {"label":"fração adicional vira outra diária","start":"2026-10-02T09:00","end":"2026-10-03T09:01","plan":"daily","daily":"1800.00","weekend":null,"days":2,"total":"3600.00"},
+ {"label":"período menor que 24 horas","start":"2026-10-02T09:00","end":"2026-10-02T18:00","plan":"daily","daily":"1800.00","weekend":null,"days":1,"total":"1800.00"},
+ {"label":"duas diárias de sexta a domingo","start":"2026-10-02T09:00","end":"2026-10-04T09:00","plan":"weekend","daily":"1800.00","weekend":null,"days":2,"total":"3600.00"},
+ {"label":"sábado a segunda com tarifa especial","start":"2026-10-03T09:00","end":"2026-10-05T09:00","plan":"weekend","daily":"1800.00","weekend":"3000.00","days":2,"total":"3000.00"},
+ {"label":"pacote com uma diária extra","start":"2026-10-02T09:00","end":"2026-10-05T09:00","plan":"weekend","daily":"1800.00","weekend":"3000.00","days":3,"total":"4800.00"},
+ {"label":"valor em centavos preservado","start":"2026-10-02T09:00","end":"2026-10-05T09:00","plan":"weekend","daily":"1800.55","weekend":"3000.25","days":3,"total":"4800.80"},
+ {"label":"trinta diárias","start":"2026-10-02T09:00","end":"2026-11-01T09:00","plan":"daily","daily":"100.00","weekend":null,"days":30,"total":"3000.00"},
+ {"label":"saída anterior à entrada","start":"2026-10-03T09:00","end":"2026-10-02T09:00","plan":"daily","daily":"1800.00","weekend":null,"error":true},
+ {"label":"período vazio","start":"2026-10-02T09:00","end":"2026-10-02T09:00","plan":"daily","daily":"1800.00","weekend":null,"error":true},
+ {"label":"pacote menor que 48h","start":"2026-10-02T09:00","end":"2026-10-04T08:59","plan":"weekend","daily":"1800.00","weekend":null,"error":true},
+ {"label":"pacote entrando numa quinta","start":"2026-10-01T09:00","end":"2026-10-03T09:00","plan":"weekend","daily":"1800.00","weekend":null,"error":true},
+ {"label":"entrada no passado","start":"2026-09-30T09:00","end":"2026-10-02T09:00","plan":"daily","daily":"1800.00","weekend":null,"error":true},
+ {"label":"dia inexistente","start":"2026-11-31T09:00","end":"2026-12-02T09:00","plan":"daily","daily":"1800.00","weekend":null,"error":true},
+ {"label":"data vazia","start":"","end":"2026-10-04T09:00","plan":"daily","daily":"1800.00","weekend":null,"error":true},
+ {"label":"horário inexistente","start":"2026-10-02T25:00","end":"2026-10-04T09:00","plan":"daily","daily":"1800.00","weekend":null,"error":true},
+ {"label":"mais de trinta diárias","start":"2026-10-02T09:00","end":"2026-11-02T09:00","plan":"daily","daily":"1800.00","weekend":null,"error":true},
+ {"label":"plano não permitido","start":"2026-10-02T09:00","end":"2026-10-04T09:00","plan":"free","daily":"1800.00","weekend":null,"error":true}
+]
