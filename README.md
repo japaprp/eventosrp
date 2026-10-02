@@ -12,6 +12,8 @@ Aplicação responsiva em português, com catálogo público e backend PHP 8.2+,
 
 Se o banco já foi criado pela primeira versão, **não reimporte o schema**: aplique uma vez `database/migrations/002_booking_periods.sql`, após backup. Ela acrescenta os campos sem apagar usuários ou reservas. Reservas antigas passam a bloquear o dia inteiro. Se os IDs 7 ou 8 já estiverem ocupados por espaços reais, ajuste os exemplos e o catálogo para evitar divergência; a migração não substitui esses registros.
 
+Depois, aplique uma vez `database/migrations/003_space_management.sql` para habilitar anúncios com proprietário, fotos, horários e preparação entre reservas. Bancos novos devem importar apenas o `schema.sql` atualizado. As migrações não foram executadas neste computador, que não possui MySQL configurado.
+
 Para visualizar apenas o catálogo, abra `public/index.html` ou sirva a pasta `public` com qualquer servidor estático. Login e API dependem do PHP e das credenciais.
 
 ## Integrações
@@ -30,15 +32,27 @@ Ribeirão Preto está disponível no filtro, com dois espaços demonstrativos. O
 
 Reservas informam entrada e saída com data e horário de Brasília. Uma diária corresponde a até 24 horas; qualquer fração adicional conta como outra diária. O pacote de fim de semana exige entrada na sexta ou no sábado e no mínimo 48 horas. `spaces.weekend_price` define o preço das primeiras duas diárias; quando é NULL, usa duas vezes `daily_price`. Cada diária adicional usa `daily_price`. Não há desconto implícito. O catálogo pode informar `weekendPrice` para refletir uma tarifa especial; mantenha esse valor sincronizado com o banco. O formulário apresenta uma estimativa, enquanto o backend calcula o total com os preços do MySQL e envia esse total ao Mercado Pago. O limite online é 30 diárias; períodos maiores precisam de atendimento.
 
-O bloqueio verifica sobreposição de todo o intervalo, com trava por espaço durante a criação. Uma nova entrada exatamente no horário de saída de outra reserva é permitida; não há intervalo de limpeza automático. O painel mostra entrada, saída, plano e quantidade de diárias. O chat existente foi preservado e depende das credenciais e regras Firebase para operar.
+O bloqueio verifica sobreposição de todo o intervalo, com trava por espaço durante a criação, incluindo o tempo de preparação configurado. O painel mostra entrada, saída, plano e quantidade de diárias. O chat depende das credenciais e regras Firebase para operar.
+
+### Cadastro de espaços e recuperação de senha
+
+Use **Anunciar espaço** no topo ou **Meus espaços e reservas recebidas** no Painel. Qualquer usuário autenticado pode cadastrar anúncios e editar somente os seus. O cadastro inclui nome, cidade, bairro, endereço público, capacidade, descrição, eventos permitidos, diária, pacote opcional, horários obrigatórios de entrada e saída, mínimo de diárias, comodidades, fotos por URLs HTTPS (até cinco) e regras/cancelamento. O proprietário pode pausar o anúncio sem excluir reservas. Não há upload de arquivos nesta versão.
+
+O catálogo público passa a ler os anúncios ativos do MySQL; sem backend, permanece no modo demonstrativo. Os dados publicados são tratados como texto no navegador. Horários e mínimo de diárias são validados também na API. O tempo de preparação informado pelo proprietário bloqueia novas entradas após a saída, sem aumentar o preço; zero permite entrada exatamente na saída anterior. Reservas existentes preservam o intervalo de preparação gravado no momento da contratação.
+
+O proprietário vê suas reservas recebidas e é incluído na conversa Firebase das novas reservas, junto com o cliente. Os pagamentos continuam direcionados à conta Mercado Pago da plataforma: não há repasse automático ou split para proprietários. Antes de operar como marketplace, estabeleça o fluxo de repasses e as condições comerciais. Anúncios de demonstração não pertencem a usuários cadastrados.
+
+**Esqueci minha senha** abre um formulário separado que exige apenas e-mail. O Firebase envia o link e fornece a página para definir a nova senha. Configure o template, domínio autorizado e proteção contra enumeração de e-mails no Firebase. O aplicativo apresenta uma mensagem genérica de confirmação.
 
 ### Verificação
 
 Execute `node tests/frontend.mjs` e `php tests/booking.php`. Os testes verificam Ribeirão Preto, filtros combinados, formulário de cadastro, pré-preenchimento de contato, estimativa, regras de diárias/pacotes, datas inválidas e sobreposição. Testes de login, MySQL, chat e checkout reais dependem de serviços configurados.
 
+Execute também `php tests/spaces.php`, com mbstring habilitado, para validar preços, fotos, capacidade, horários, mínimos e demais campos dos anúncios. Os testes frontend verificam o formulário de espaços e o envio da recuperação de senha com Firebase simulado; envio real de e-mail depende da configuração.
+
 ## Antes de publicar
 
-O catálogo contém **dados de demonstração e fotografias ilustrativas do Unsplash**, sem relação comprovada com os locais descritos. Substitua por espaços autorizados e mantenha os dados de `public/app.js` e `database/schema.sql` sincronizados; o preço e a capacidade usados na reserva sempre vêm do MySQL. O catálogo estático não é um painel de administração de espaços.
+O catálogo inicial contém **dados de demonstração e fotografias ilustrativas do Unsplash**, sem relação comprovada com os locais descritos. Substitua por anúncios reais usando o cadastro e remova ou pause os exemplos no banco antes de publicar. Em operação, o catálogo e as reservas usam preços e capacidade do MySQL.
 
 Adapte as minutas legais com dados da operadora, canal de privacidade, retenção e condições de cancelamento reais. Cancelamentos/reembolsos e administração de espaços são atendidos operacionalmente, não têm automação nesta versão. Reservas pendentes bloqueiam a data até conciliação operacional; não há expiração automática. Implemente essa rotina antes de operar em escala, sem liberar uma data cujo checkout ainda possa receber pagamento.
 
