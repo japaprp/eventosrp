@@ -228,6 +228,40 @@ function spaceForm(space=null){
   };
 }
 
-try{const response=await fetch('config.php');if(response.ok)config=await response.json();if(config.firebase?.apiKey){const [app,a,d]=await Promise.all([import('https://www.gstatic.com/firebasejs/10.12.4/app.js'),import('https://www.gstatic.com/firebasejs/10.12.4/auth.js'),import('https://www.gstatic.com/firebasejs/10.12.4/database.js')]);app.initializeApp(config.firebase);auth=app.getAuth();db=app.getDatabase();sdk={initializeApp:app.initializeApp,getAuth:app.getAuth,getDatabase:app.getDatabase,signInWithEmailAndPassword:a.signInWithEmailAndPassword,createUserWithEmailAndPassword:a.createUserWithEmailAndPassword,sendPasswordResetEmail:a.sendPasswordResetEmail,updateProfile:a.updateProfile,signOut:a.signOut,signInWithPopup:a.signInWithPopup,GoogleAuthProvider:a.GoogleAuthProvider,onAuthStateChanged:a.onAuthStateChanged};sdk.onAuthStateChanged(auth,u=>{user=u})}else config.firebase=null}catch{}
+try {
+  const response = await fetch('config.php');
+  if (response.ok) {
+    config = await response.json();
+  }
+
+  if (config.firebase?.apiKey) {
+    const appModule = await import('https://www.gstatic.com/firebasejs/10.12.4/app.js');
+    const authModule = await import('https://www.gstatic.com/firebasejs/10.12.4/auth.js');
+    const dbModule = await import('https://www.gstatic.com/firebasejs/10.12.4/database.js');
+
+    const firebaseApp = appModule.initializeApp(config.firebase);
+    auth = authModule.getAuth(firebaseApp);
+    db = dbModule.getDatabase(firebaseApp);
+
+    sdk = {
+      ...authModule,
+      GoogleAuthProvider: authModule.GoogleAuthProvider,
+      signInWithPopup: authModule.signInWithPopup,
+      signInWithEmailAndPassword: authModule.signInWithEmailAndPassword,
+      createUserWithEmailAndPassword: authModule.createUserWithEmailAndPassword,
+      sendPasswordResetEmail: authModule.sendPasswordResetEmail,
+      updateProfile: authModule.updateProfile,
+      signOut: authModule.signOut,
+      onAuthStateChanged: authModule.onAuthStateChanged
+    };
+
+    sdk.onAuthStateChanged(auth, (u) => { user = u; });
+  } else {
+    config.firebase = null;
+  }
+} catch (err) {
+  console.error('Erro ao inicializar Firebase:', err);
+  config.firebase = null;
+}
 
 refreshCatalogue();
