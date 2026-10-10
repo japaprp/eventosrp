@@ -1,15 +1,18 @@
 FROM php:8.2-apache
 
-# Instalar todas as dependências de sistema necessárias
+# Instalar dependências do sistema necessárias
 RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     libonig-dev \
     libssl-dev \
+    zlib1g-dev \
+    libzip-dev \
     default-mysql-client \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Instalar extensões PHP necessárias
-RUN docker-php-ext-install -j$(nproc) pdo_mysql curl mbstring
+RUN docker-php-ext-install -j$(nproc) pdo_mysql curl mbstring zip
 
 # Instalar Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
