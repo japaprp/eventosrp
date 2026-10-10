@@ -1,39 +1,46 @@
 FROM php:8.2-apache
 
-# Instalar extensões necessárias
+# Instalar dependências do sistema
 RUN apt-get update && apt-get install -y \
-    libpdo-mysql \
-    && docker-php-ext-install \
-    pdo \
-    pdo_mysql \
-    curl \
-    mbstring \
+    default-mysql-client \
     && rm -rf /var/lib/apt/lists/*
+
+# Instalar extensões PHP necessárias
+RUN docker-php-ext-install pdo_mysql && \
+    docker-php-ext-install curl mbstring
 
 # Instalar Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Definir diretório de trabalho
 WORKDIR /var/www/html
 
-# Copiar arquivos do projeto
+# Copiar o app
 COPY . .
 
 # Instalar dependências PHP
 RUN composer install --no-interaction --prefer-dist --no-progress --no-dev
 
-# Configurar Apache para servir a pasta public
+# Habilitar mod_rewrite
 RUN a2enmod rewrite
-RUN sed -i 's|/var/www/html|/var/www/html/public|g' /etc/apache2/sites-available/000-default.conf
 
-# Adicionar .htaccess na pasta public para rewrite rules
-RUN echo '<IfModule mod_rewrite.c>\n    RewriteEngine On\n    RewriteBase /\n    RewriteRule ^index\\.html$ - [L]\n    RewriteCond %{REQUEST_FILENAME} !-f\n    RewriteCond %{REQUEST_FILENAME} !-d\n    RewriteRule . /index.html [L]\n</IfModule>' > /var/www/html/public/.htaccess
+# Configurar Apache para servir a pasta public
+RUN sed -i 's|DocumentRoot /var/www/html|DocumentRoot /var/www/html/public|g' /etc/apache2/sites-available/000-default.conf \
+    && sed -i 's|<Directory /var/www/html>|<Directory /var/www/html/public>|g' /etc/apache2/apache2.conf
 
-# Definir permissões
+# Criar .htaccess para rewrite rules
+RUN printf '%s\n' \
+    '<IfModule mod_rewrite.c>' \
+    '    RewriteEngine On' \
+    '    RewriteBase /' \
+    '    RewriteRule ^index\.html$ - [L]' \
+    '    RewriteCond %{REQUEST_FILENAME} !-f' \
+    '    RewriteCond %{REQUEST_FILENAME} !-d' \
+    '    RewriteRule . /index.html [L]' \
+    '</IfModule>' > /var/www/html/public/.htaccess
+
+# Ajustar permissões
 RUN chown -R www-data:www-data /var/www/html
 
-# Expor porta (Render vai usar a variável PORT)
-EXPOSE 8080
+EXPOSE 80
 
-# Comando start
-CMD ["sh", "-c", "apache2ctl -D FOREGROUND"]
+CMD ["apache2-foreground"]
