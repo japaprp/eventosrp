@@ -12,6 +12,20 @@ foreach ($cases as $case) {
         if (empty($case['error'])) throw new RuntimeException('Rejeição inesperada: '.$case['label'],0,$e);
     }
 }
+$totalLimitChecks = 0;
+foreach ([['daily', '2026-10-13T09:00', null], ['weekend', '2026-10-14T09:00', '9090909.09']] as [$plan, $end, $weekendPrice]) {
+    $quote = bookingQuote('2026-10-02T09:00', $end, $plan, '9090909.09', $weekendPrice, $now);
+    if ($quote['total'] !== '99999999.99') throw new RuntimeException('O maior total persistível deve ser aceito: '.$plan);
+    $totalLimitChecks++;
+    $rejected = false;
+    try {
+        bookingQuote('2026-10-02T09:00', $end, $plan, '9090909.10', $weekendPrice === null ? null : '9090909.10', $now);
+    } catch (InvalidArgumentException $e) {
+        $rejected = true;
+    }
+    if (!$rejected) throw new RuntimeException('Total acima de DECIMAL(10,2) deve ser rejeitado: '.$plan);
+    $totalLimitChecks++;
+}
 $overlaps = [
  ['2026-10-02 09:00:00','2026-10-04 09:00:00','2026-10-03 09:00:00','2026-10-05 09:00:00',true],
  ['2026-10-02 09:00:00','2026-10-04 09:00:00','2026-10-02 10:00:00','2026-10-02 18:00:00',true],
@@ -23,4 +37,4 @@ $overlaps = [
 foreach ($overlaps as [$a,$b,$c,$d,$expected]) {
     if (bookingOverlaps($a,$b,$c,$d) !== $expected) throw new RuntimeException('Conflito de intervalo incorreto.');
 }
-echo count($cases)." testes de período/preço e ".count($overlaps)." testes de sobreposição passaram.\n";
+echo count($cases)." testes de período/preço, ".$totalLimitChecks." de limite do total e ".count($overlaps)." de sobreposição passaram.\n";

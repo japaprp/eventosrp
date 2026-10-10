@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-function validateSpace(array $input): array {
+function validateSpace(array $input,?string $ownerHash=null): array {
     $data=[];$labels=['name'=>'nome','city'=>'cidade','neighborhood'=>'bairro','address'=>'endereço','description'=>'descrição','rules'=>'regras'];
     foreach(['name'=>120,'city'=>120,'neighborhood'=>120,'address'=>250,'description'=>4000,'rules'=>4000] as $field=>$max){
         $value=$input[$field]??'';
@@ -26,26 +26,54 @@ function validateSpace(array $input): array {
         $data[$field]=$value;
     }
     $photos=$input['photos']??[];
-    if(!is_array($photos)||!array_is_list($photos)||count($photos)<1||count($photos)>5)throw new InvalidArgumentException('Informe de uma a cinco fotos por URL HTTPS.');
-    foreach($photos as $url){
-        if(!is_string($url)||strlen($url)>2048||!filter_var($url,FILTER_VALIDATE_URL)||strtolower(parse_url($url,PHP_URL_SCHEME)??'')!=='https'||parse_url($url,PHP_URL_USER)!==null)throw new InvalidArgumentException('As fotos devem usar URLs HTTPS válidas.');
+    if(!is_array($photos)||!array_is_list($photos)||count($photos)<1||count($photos)>8)throw new InvalidArgumentException('Adicione de uma a oito fotos.');
+    $normalizedPhotos=[];$coverCount=0;
+    foreach($photos as $index=>$photo){
+        $legacy=is_string($photo);
+        if(!$legacy&&(!is_array($photo)||array_is_list($photo)))throw new InvalidArgumentException('Confira os dados de cada foto.');
+        $url=$legacy?$photo:($photo['url']??null);$description=$legacy?'':($photo['description']??null);$cover=$legacy?$index===0:($photo['cover']??null);
+        if(!is_string($url)||strlen($url)>2048||!is_string($description)||mb_strlen(trim($description))>240||!is_bool($cover))throw new InvalidArgumentException('Confira o link, a descrição e a foto principal.');
+        if(preg_match('/^api\.php\?action=space-photo&owner=([a-f0-9]{64})&id=([a-f0-9]{32})$/',$url,$match)){
+            if($ownerHash===null||!hash_equals($ownerHash,$match[1]))throw new InvalidArgumentException('Envie novamente as fotos deste espaço pela sua conta.');
+        }elseif(!filter_var($url,FILTER_VALIDATE_URL)||strtolower(parse_url($url,PHP_URL_SCHEME)??'')!=='https'||parse_url($url,PHP_URL_USER)!==null)throw new InvalidArgumentException('Use fotos enviadas pelo formulário ou URLs HTTPS válidas.');
+        if($cover)$coverCount++;
+        $normalizedPhotos[]=['url'=>$url,'description'=>trim($description),'cover'=>$cover];
     }
+    if($coverCount!==1)throw new InvalidArgumentException('Escolha exatamente uma foto principal.');
+    usort($normalizedPhotos,static fn(array $a,array $b):int=>(int)$b['cover']<=>(int)$a['cover']);
     $events=$input['events']??[];$amenities=$input['amenities']??[];
     if(!is_array($events)||!array_is_list($events)||!$events||count($events)>3)throw new InvalidArgumentException('Selecione pelo menos um tipo de evento.');
     foreach($events as $event){if(!is_string($event)||!in_array($event,['Casamento','Corporativo','Aniversário'],true))throw new InvalidArgumentException('Tipo de evento inválido.');}
-    if(!is_array($amenities)||!array_is_list($amenities)||count($amenities)>8)throw new InvalidArgumentException('Confira as comodidades.');
-    foreach($amenities as $value){if(!is_string($value)||!in_array($value,['Piscina','Churrasqueira','Estacionamento','Wi-Fi','Cozinha','Ar-condicionado','Acessibilidade','Área coberta'],true))throw new InvalidArgumentException('Comodidade inválida.');}
+    if(!is_array($amenities)||!array_is_list($amenities)||count($amenities)>10)throw new InvalidArgumentException('Confira as comodidades.');
+    foreach($amenities as $value){if(!is_string($value)||!in_array($value,['Aceita pets','TV','Wi-Fi','Piscina','Ar-condicionado','Churrasqueira','Estacionamento','Cozinha','Acessibilidade','Área coberta'],true))throw new InvalidArgumentException('Comodidade inválida.');}
     if(!is_bool($input['active']??null))throw new InvalidArgumentException('Informe o status do anúncio.');
     $data['active']=(int)$input['active'];
-    $data['photos']=json_encode($photos,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);
+    $data['photos']=json_encode($normalizedPhotos,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
     $data['event_types']=json_encode(array_values(array_unique($events)),JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
     $data['amenities']=json_encode(array_values(array_unique($amenities)),JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
     return $data;
 }
 function publicSpace(array $row): array {
-    return ['id'=>(int)$row['id'],'name'=>$row['name'],'city'=>$row['city'],'neighborhood'=>$row['neighborhood'],'address'=>$row['address'],'type'=>$row['type'],'description'=>$row['description'],'rules'=>$row['rules'],'capacity'=>(int)$row['capacity'],'price'=>(float)$row['daily_price'],'weekendPrice'=>$row['weekend_price']===null?null:(float)$row['weekend_price'],'checkInTime'=>substr($row['check_in_time'],0,5),'checkOutTime'=>substr($row['check_out_time'],0,5),'minimumDays'=>(int)$row['minimum_days'],'cleanupMinutes'=>(int)$row['cleanup_minutes'],'active'=>(bool)$row['active'],'isDemo'=>(bool)$row['is_demo'],'photos'=>json_decode($row['photos']??'[]',true),'events'=>json_decode($row['event_types']??'["Casamento","Corporativo","Aniversário"]',true),'amenities'=>json_decode($row['amenities']??'[]',true)];
+    $details=json_decode($row['photos']??'[]',true)?:[];$details=array_map(static fn($photo,$index)=>is_string($photo)?['url'=>$photo,'description'=>'','cover'=>$index===0]:$photo,$details,array_keys($details));
+    usort($details,static fn(array $a,array $b):int=>(int)($b['cover']??false)<=>(int)($a['cover']??false));
+    return ['id'=>(int)$row['id'],'name'=>$row['name'],'city'=>$row['city'],'neighborhood'=>$row['neighborhood'],'address'=>$row['address'],'type'=>$row['type'],'description'=>$row['description'],'rules'=>$row['rules'],'capacity'=>(int)$row['capacity'],'price'=>(float)$row['daily_price'],'weekendPrice'=>$row['weekend_price']===null?null:(float)$row['weekend_price'],'checkInTime'=>substr($row['check_in_time'],0,5),'checkOutTime'=>substr($row['check_out_time'],0,5),'minimumDays'=>(int)$row['minimum_days'],'cleanupMinutes'=>(int)$row['cleanup_minutes'],'active'=>(bool)$row['active'],'isDemo'=>(bool)$row['is_demo'],'photos'=>array_column($details,'url'),'photoDetails'=>$details,'events'=>json_decode($row['event_types']??'["Casamento","Corporativo","Aniversário"]',true),'amenities'=>json_decode($row['amenities']??'[]',true)];
 }
 function enforceSpaceSchedule(array $space,array $quote): void {
     if(substr($quote['check_in'],11,5)!==substr($space['check_in_time'],0,5)||substr($quote['check_out'],11,5)!==substr($space['check_out_time'],0,5))throw new InvalidArgumentException('Use os horários de entrada e saída definidos pelo espaço.');
     if($quote['days']<(int)$space['minimum_days'])throw new InvalidArgumentException('Este espaço exige no mínimo '.$space['minimum_days'].' diárias.');
+}
+function spaceAvailabilityQuote(array $space,string $date,?DateTimeImmutable $now=null): array {
+    $zone=new DateTimeZone('America/Sao_Paulo');$selected=DateTimeImmutable::createFromFormat('!Y-m-d',$date,$zone);
+    if(!$selected||$selected->format('Y-m-d')!==$date)throw new InvalidArgumentException('Informe uma data válida para consultar.');
+    $checkOut=$selected->modify('+'.max(1,(int)$space['minimum_days']).' days')->format('Y-m-d');
+    return spaceReservationQuote($space,$date,$checkOut,'daily',$now);
+}
+function spaceReservationQuote(array $space,string $checkInDate,string $checkOutDate,string $plan,?DateTimeImmutable $now=null): array {
+    $checkIn=$checkInDate.'T'.substr((string)$space['check_in_time'],0,5);
+    $checkOut=$checkOutDate.'T'.substr((string)$space['check_out_time'],0,5);
+    $quote=bookingQuote($checkIn,$checkOut,$plan,(string)$space['daily_price'],$space['weekend_price']===null?null:(string)$space['weekend_price'],$now);
+    enforceSpaceSchedule($space,$quote);
+    $zone=new DateTimeZone('America/Sao_Paulo');
+    $quote['blocked_until']=(new DateTimeImmutable($quote['check_out'],$zone))->modify('+'.(int)$space['cleanup_minutes'].' minutes')->format('Y-m-d H:i:s');
+    return $quote;
 }
