@@ -25,6 +25,10 @@ COPY . .
 # Instalar dependências PHP
 RUN composer install --no-interaction --prefer-dist --no-progress --no-dev
 
+# Garantir que apenas o MPM prefork seja carregado no Apache do PHP
+RUN for mpm in mpm_event mpm_worker; do a2dismod "$mpm" 2>/dev/null || true; done \
+    && a2enmod mpm_prefork
+
 # Habilitar mod_rewrite
 RUN a2enmod rewrite
 
