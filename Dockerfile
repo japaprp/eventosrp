@@ -25,9 +25,12 @@ COPY . .
 # Instalar dependências PHP
 RUN composer install --no-interaction --prefer-dist --no-progress --no-dev
 
-# Garantir que apenas o MPM prefork seja carregado no Apache do PHP
-RUN find /etc/apache2/mods-enabled -maxdepth 1 -type l -name 'mpm_*' -delete \
+# Remover todos os MPMs e ativar somente prefork; validar durante o build
+RUN for mpm in mpm_event mpm_worker mpm_prefork; do \
+      a2dismod "$mpm" 2>/dev/null || true; \
+    done \
     && a2enmod mpm_prefork \
+    && apache2ctl -M \
     && apache2ctl -t
 
 # Habilitar mod_rewrite
@@ -37,11 +40,11 @@ RUN a2enmod rewrite
 RUN sed -i 's|DocumentRoot /var/www/html|DocumentRoot /var/www/html/public|g' /etc/apache2/sites-available/000-default.conf
 
 # Criar .htaccess para rewrite rules
-RUN printf '%s\n' \
+RUN printf '%s\\n' \
     '<IfModule mod_rewrite.c>' \
     '    RewriteEngine On' \
     '    RewriteBase /' \
-    '    RewriteRule ^index\.html$ - [L]' \
+    '    RewriteRule ^index\\.html$ - [L]' \
     '    RewriteCond %{REQUEST_FILENAME} !-f' \
     '    RewriteCond %{REQUEST_FILENAME} !-d' \
     '    RewriteRule . /index.html [L]' \
@@ -52,4 +55,5 @@ RUN chown -R www-data:www-data /var/www/html
 
 EXPOSE 80
 
-CMD ["apache2-foreground"]
+# Reaplicar a seleção do MPM em runtime e falhar com log claro se houver conflito
+CMD ["sh", "-c", "for mpm in mpm_event mpm_worker mpm_prefork; do a2dismod \"$mpm\" 2>/dev/null || true; done; a2enmod mpm_prefork; apache2ctl -M; apache2ctl -t; exec apache2-foreground"]
