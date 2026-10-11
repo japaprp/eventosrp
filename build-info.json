@@ -1,0 +1,12 @@
+{
+  "mode": "catalogue-preview",
+  "files": {
+    "index.html": "ea1c46f2b0084fe82d33ca2c978bdd0d6cf1e0e69f39a4addf0ea37db83a60aa",
+    "app.js": "f4bcd8b639da1f2a73f59c68ab41c72a0321cae7449c5b3f01b645fe793455b3",
+    "booking.mjs": "669e2e1464aaaa70e3b4b5a18c5c1d585a82ad8fe2f8bce32f4a5edbd289caad",
+    "style.css": "d68b8a3199ff4937aeac7523d01b442a12d1ffed9609233ec0c7ca181c1e0a28",
+    "improvements.css": "7a8de679e3c02b056cf6ef137c17a41680ec6d9f216f0a5df6b43edeb1e9b653",
+    "deployment.js": "f2401964deae3533952a9d912b854d37e5a6736bee7f22110a2e09c2309f7d0a",
+    ".nojekyll": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}
