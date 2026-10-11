@@ -40,11 +40,11 @@ RUN a2enmod rewrite
 RUN sed -i 's|DocumentRoot /var/www/html|DocumentRoot /var/www/html/public|g' /etc/apache2/sites-available/000-default.conf
 
 # Criar .htaccess para rewrite rules
-RUN printf '%s\\n' \
+RUN printf '%s\n' \
     '<IfModule mod_rewrite.c>' \
     '    RewriteEngine On' \
     '    RewriteBase /' \
-    '    RewriteRule ^index\\.html$ - [L]' \
+    '    RewriteRule ^index\.html$ - [L]' \
     '    RewriteCond %{REQUEST_FILENAME} !-f' \
     '    RewriteCond %{REQUEST_FILENAME} !-d' \
     '    RewriteRule . /index.html [L]' \
