@@ -7,8 +7,22 @@ require dirname(__DIR__).'/src/bootstrap.php';
 require dirname(__DIR__).'/src/booking.php';
 require dirname(__DIR__).'/src/spaces.php';
 date_default_timezone_set('America/Sao_Paulo');
+function configuredSpacePhotoDirectory(bool $required=false): ?string {
+ $path=trim((string)env('SPACE_PHOTOS_DIR',''));
+ if($path==='')return $required?null:dirname(__DIR__).'/var/space-photos';
+ if(!str_starts_with($path,DIRECTORY_SEPARATOR))$path=dirname(__DIR__).'/'.$path;
+ return rtrim($path,DIRECTORY_SEPARATOR);
+}
 try {
  $action=$_GET['action']??'';$method=$_SERVER['REQUEST_METHOD'];
+ if($action==='space-photo'&&$method==='GET'){
+  $owner=$_GET['owner']??'';$id=$_GET['id']??'';
+  if(!is_string($owner)||!preg_match('/^[a-f0-9]{64}$/',$owner)||!is_string($id)||!preg_match('/^[a-f0-9]{32}$/',$id))respond(['error'=>'Foto não encontrada.'],404);
+  $root=configuredSpacePhotoDirectory();$path=$root.'/'.$owner.'/'.$id.'.jpg';
+  if(!is_file($path)||is_link($path)||is_link(dirname($path))||is_link($root))respond(['error'=>'Foto não encontrada.'],404);
+  $image=@getimagesize($path);if(!$image||$image['mime']!=='image/jpeg')respond(['error'=>'Foto inválida.'],404);
+  header_remove('Content-Type');header('Content-Type: image/jpeg');header('Cache-Control: public, max-age=31536000, immutable');header('Content-Length: '.filesize($path));header('X-Content-Type-Options: nosniff');header('Content-Disposition: inline; filename="espaco.jpg"');readfile($path);exit;
+ }
  if($action==='spaces'&&$method==='GET'){$rows=database()->query('SELECT * FROM spaces WHERE active=1 ORDER BY id DESC')->fetchAll(PDO::FETCH_ASSOC);respond(array_map('publicSpace',$rows));}
  if($action==='webhook') {
   if($method!=='POST')respond(['error'=>'Método não permitido.'],405);
@@ -24,12 +38,29 @@ try {
   if(($payment['status']??'')==='approved'){$q=$pdo->prepare("UPDATE reservations SET status='approved',payment_id=? WHERE id=? AND status IN ('creating','pending','approved')");$q->execute([$id,$reference]);}
   respond(['received'=>true]);
  }
- if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations'],true))respond(['error'=>'Rota não encontrada.'],404);
- if((in_array($action,['my-spaces','host-reservations'],true)&&$method!=='GET')||($action==='save-space'&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
+ if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations','upload-space-photo'],true))respond(['error'=>'Rota não encontrada.'],404);
+ if((in_array($action,['my-spaces','host-reservations'],true)&&$method!=='GET')||(in_array($action,['save-space','upload-space-photo'],true)&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
  if(($action==='reserve'&&$method!=='POST')||($action==='reservations'&&$method!=='GET')||($action==='profile'&&!in_array($method,['GET','POST'],true)))respond(['error'=>'Método não permitido.'],405);
  $header=$_SERVER['HTTP_AUTHORIZATION']??'';if(!preg_match('/^Bearer (.+)$/',$header,$match))respond(['error'=>'Entre na sua conta.'],401);
  try{$token=firebase()->createAuth()->verifyIdToken($match[1],true);}catch(Throwable $e){respond(['error'=>'Sessão inválida. Entre novamente.'],401);}
- $uid=$token->claims()->get('sub');$email=$token->claims()->get('email','');$pdo=database();
+ $uid=$token->claims()->get('sub');$email=$token->claims()->get('email','');
+ if($action==='upload-space-photo'){
+  if((int)($_SERVER['CONTENT_LENGTH']??0)>3*1024*1024)respond(['error'=>'Solicitação muito grande.'],413);
+  $root=configuredSpacePhotoDirectory(true);
+  if($root===null)respond(['error'=>'O armazenamento permanente de fotos ainda não está configurado.'],503);
+  $file=$_FILES['photo']??null;
+  if(!is_array($file)||($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK)respond(['error'=>'Selecione uma foto válida.'],422);
+  if(!is_uploaded_file($file['tmp_name'])||$file['size']<1||$file['size']>2*1024*1024)respond(['error'=>'Cada foto pode ter até 2 MB após a otimização.'],413);
+  $image=@getimagesize($file['tmp_name']);
+  if(!$image||$image['mime']!=='image/jpeg'||$image[0]>8192||$image[1]>8192)respond(['error'=>'Não foi possível validar a foto otimizada.'],422);
+  $owner=hash('sha256',$uid);$directory=$root.'/'.$owner;
+  if(!is_dir($directory)&&!mkdir($directory,0700,true)&&!is_dir($directory))throw new RuntimeException('Não foi possível preparar o armazenamento de fotos.');
+  if(is_link($root)||is_link($directory)||!is_writable($directory))throw new RuntimeException('O armazenamento de fotos não está disponível.');
+  $id=bin2hex(random_bytes(16));$target=$directory.'/'.$id.'.jpg';
+  if(!move_uploaded_file($file['tmp_name'],$target))throw new RuntimeException('Não foi possível salvar a foto.');
+  respond(['url'=>'api.php?action=space-photo&owner='.$owner.'&id='.$id],201);
+ }
+ $pdo=database();
  $q=$pdo->prepare('INSERT INTO users(firebase_uid,email) VALUES (?,?) ON DUPLICATE KEY UPDATE email=VALUES(email)');$q->execute([$uid,$email]);
  $q=$pdo->prepare('SELECT id FROM users WHERE firebase_uid=?');$q->execute([$uid]);$userId=$q->fetchColumn();
  if($action==='my-spaces'){$q=$pdo->prepare('SELECT * FROM spaces WHERE owner_id=? ORDER BY id DESC');$q->execute([$userId]);respond(array_map('publicSpace',$q->fetchAll(PDO::FETCH_ASSOC)));}
@@ -37,7 +68,7 @@ try {
  if($action==='save-space'){
   if((int)($_SERVER['CONTENT_LENGTH']??0)>40000)respond(['error'=>'Solicitação muito grande.'],413);
   $input=json_decode(file_get_contents('php://input'),true,512,JSON_THROW_ON_ERROR);if(!is_array($input))respond(['error'=>'Dados inválidos.'],400);
-  try{$data=validateSpace($input);}catch(InvalidArgumentException $e){respond(['error'=>$e->getMessage()],422);}
+  try{$data=validateSpace($input,hash('sha256',$uid));}catch(InvalidArgumentException $e){respond(['error'=>$e->getMessage()],422);}
   $id=$input['id']??null;$pdo->beginTransaction();
   if($id!==null){
    if(!filter_var($id,FILTER_VALIDATE_INT)||$id<1){$pdo->rollBack();respond(['error'=>'Espaço inválido.'],422);}
