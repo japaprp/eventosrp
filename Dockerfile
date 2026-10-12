@@ -56,4 +56,4 @@ RUN chown -R www-data:www-data /var/www/html
 EXPOSE 80
 
 # Reaplicar a seleção do MPM em runtime e falhar com log claro se houver conflito
-CMD ["sh", "-c", "for mpm in mpm_event mpm_worker mpm_prefork; do a2dismod \"$mpm\" 2>/dev/null || true; done; a2enmod mpm_prefork; apache2ctl -M; apache2ctl -t; exec apache2-foreground"]
+CMD ["sh", "-c", "for mpm in mpm_event mpm_worker mpm_prefork; do a2dismod \"$mpm\" 2>/dev/null || true; done; a2enmod mpm_prefork; apache2ctl -M; apache2ctl -t; mkdir -p /var/www/html/var/space-photos && chown www-data:www-data /var/www/html/var/space-photos; exec apache2-foreground"]
