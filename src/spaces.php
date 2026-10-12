@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-function validateSpace(array $input): array {
+function validateSpace(array $input,?string $ownerHash=null): array {
     $data=[];$labels=['name'=>'nome','city'=>'cidade','neighborhood'=>'bairro','address'=>'endereço','description'=>'descrição','rules'=>'regras'];
     foreach(['name'=>120,'city'=>120,'neighborhood'=>120,'address'=>250,'description'=>4000,'rules'=>4000] as $field=>$max){
         $value=$input[$field]??'';
@@ -26,9 +26,15 @@ function validateSpace(array $input): array {
         $data[$field]=$value;
     }
     $photos=$input['photos']??[];
-    if(!is_array($photos)||!array_is_list($photos)||count($photos)<1||count($photos)>5)throw new InvalidArgumentException('Informe de uma a cinco fotos por URL HTTPS.');
+    if(!is_array($photos)||!array_is_list($photos)||count($photos)<1||count($photos)>5)throw new InvalidArgumentException('Adicione de uma a cinco fotos.');
     foreach($photos as $url){
-        if(!is_string($url)||strlen($url)>2048||!filter_var($url,FILTER_VALIDATE_URL)||strtolower(parse_url($url,PHP_URL_SCHEME)??'')!=='https'||parse_url($url,PHP_URL_USER)!==null)throw new InvalidArgumentException('As fotos devem usar URLs HTTPS válidas.');
+        if(!is_string($url)||strlen($url)>2048)throw new InvalidArgumentException('Confira as fotos do espaço.');
+        $host=strtolower((string)(parse_url($url,PHP_URL_HOST)??''));
+        if($host==='res.cloudinary.com'){
+            $cloudName=trim((string)env('CLOUDINARY_CLOUD_NAME',''));$path=parse_url($url,PHP_URL_PATH)??'';
+            $pattern='~^/'.preg_quote($cloudName,'~').'/image/upload/(?:v[0-9]+/)?eventosrp/spaces/([a-f0-9]{64})/[a-f0-9]{32}(?:\\.jpg)?$~D';
+            if($ownerHash===null||!preg_match($pattern,$path,$match)||!hash_equals($ownerHash,$match[1]))throw new InvalidArgumentException('Envie novamente as fotos deste espaço pela sua conta.');
+        }elseif(!filter_var($url,FILTER_VALIDATE_URL)||strtolower(parse_url($url,PHP_URL_SCHEME)??'')!=='https'||parse_url($url,PHP_URL_USER)!==null)throw new InvalidArgumentException('Use fotos enviadas pelo formulário ou URLs HTTPS válidas.');
     }
     $events=$input['events']??[];$amenities=$input['amenities']??[];
     if(!is_array($events)||!array_is_list($events)||!$events||count($events)>3)throw new InvalidArgumentException('Selecione pelo menos um tipo de evento.');
