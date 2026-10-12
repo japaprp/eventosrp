@@ -225,9 +225,12 @@ function spaceForm(space=null){
   </form>`);
   const values={'name':space?.name||'','city':space?.city||'Ribeirão Preto','neighborhood':space?.neighborhood||'','address':space?.address||'','type':space?.type||'Salão','capacity':space?.capacity||'150','description':space?.description||'','price':space?.price||'2500','weekend_price':space?.weekendPrice||'4500','in':space?.checkInTime||'09:00','out':space?.checkOutTime||'18:00','minimum':space?.minimumDays||'1','cleanup':space?.cleanupMinutes||'0','rules':space?.rules||''};
   for(const [key,value] of Object.entries(values))$('#space-'+key).value=value;
-  let photos=Array.isArray(space?.photos)?space.photos.filter(url=>typeof url==='string'):[];
-  const photoForm=$('#space-form'),photoUserId=user.uid;
-  const photoFormIsCurrent=()=>$('#space-form')===photoForm&&user?.uid===photoUserId;
+  let photos=Array.isArray(space?.photos)?space.photos.filter(url=>typeof url==='string'):[];const pendingUploads=new Set();
+  const photoForm=$('#space-form'),photoUser=user;
+  const photoFormIsCurrent=()=>$('#space-form')===photoForm&&$('#modal').open&&user?.uid===photoUser.uid;
+  async function discardPendingUploads(keepUrls=[]){const keep=new Set(keepUrls);for(const url of [...pendingUploads])if(!keep.has(url)){await api('delete-space-photo',{method:'POST',body:JSON.stringify({url})});pendingUploads.delete(url)}}
+  const cleanupOnClose=()=>{ $('#modal').removeEventListener('close',cleanupOnClose);void discardPendingUploads().catch(()=>{}) };
+  $('#modal').addEventListener('close',cleanupOnClose);
   function updateSpacePhotoPreview(){
     const box=$('#space-photo-preview');
     box.innerHTML=photos.length?photos.map((url,index)=>`<article class="space-photo-card"><img src="${escapeHtml(url)}" alt="Foto ${index+1} do espaço" loading="lazy"><button class="detail-button" type="button" data-remove-space-photo="${index}">Remover</button></article>`).join(''):'<small>As fotos selecionadas aparecerão aqui.</small>';
@@ -255,10 +258,11 @@ function spaceForm(space=null){
   }
   async function uploadSpacePhoto(file){
     const image=await compressSpacePhoto(file),body=new FormData();body.append('photo',image,'foto.jpg');
-    const token=await user.getIdToken(),response=await fetch('api.php?action=upload-space-photo',{method:'POST',headers:{Authorization:`Bearer ${token}`},body});
+    const token=await photoUser.getIdToken(),response=await fetch('api.php?action=upload-space-photo',{method:'POST',headers:{Authorization:`Bearer ${token}`},body});
     const result=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(result.error||'Não foi possível enviar esta foto.');
     if(typeof result.url!=='string')throw new Error('O servidor não confirmou o envio da foto.');
+    if(!photoFormIsCurrent()){await fetch('api.php?action=delete-space-photo',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({url:result.url})}).catch(()=>{});return null}
     return result.url;
   }
   updateSpacePhotoPreview();
@@ -272,7 +276,7 @@ function spaceForm(space=null){
       for(let index=0;index<files.length;index++){
         if(!photoFormIsCurrent())return;
         status.textContent=`Otimizando e enviando foto ${index+1} de ${files.length}…`;
-        photos.push(await uploadSpacePhoto(files[index]));uploaded++;updateSpacePhotoPreview();
+        const url=await uploadSpacePhoto(files[index]);if(!url)return;photos.push(url);pendingUploads.add(url);uploaded++;updateSpacePhotoPreview();
       }
       status.textContent=`${uploaded} foto(s) adicionada(s).`;
     }catch(error){
@@ -283,14 +287,14 @@ function spaceForm(space=null){
   $('#space-active').checked=space?.active??true;
   document.querySelectorAll('[data-space-event]').forEach(e=>e.checked=(space?.events||['Aniversário']).includes(e.value));
   document.querySelectorAll('[data-space-amenity]').forEach(e=>e.checked=(space?.amenities||[]).includes(e.value));
-  $('#cancel-space').onclick=()=>spaceManager();
+  $('#cancel-space').onclick=async()=>{await discardPendingUploads().catch(()=>{});$('#modal').removeEventListener('close',cleanupOnClose);spaceManager()};
   $('#space-form').onsubmit=async e=>{
     e.preventDefault();const button=$('#save-space');$('.form-error').textContent='';
     const payload={id:space?.id??null,name:$('#space-name').value.trim(),city:$('#space-city').value.trim(),neighborhood:$('#space-neighborhood').value.trim(),address:$('#space-address').value.trim(),type:$('#space-type').value,capacity:Number($('#space-capacity').value),description:$('#space-description').value.trim(),price:Number($('#space-price').value),weekendPrice:Number($('#space-weekend-price').value),checkInTime:$('#space-in').value,checkOutTime:$('#space-out').value,minimumDays:Number($('#space-minimum').value),cleanupMinutes:Number($('#space-cleanup').value),photos:photos,amenities:[...document.querySelectorAll('[data-space-amenity]:checked')].map(e=>e.value),events:[...document.querySelectorAll('[data-space-event]:checked')].map(e=>e.value),rules:$('#space-rules').value.trim(),active:$('#space-active').checked};
     if(!payload.events.length){$('.form-error').textContent='Selecione pelo menos um tipo de evento.';return}
     if(!payload.photos.length||payload.photos.length>5){$('.form-error').textContent='Adicione de uma a cinco fotos do aparelho.';return}
     button.disabled=true;
-    try{await api('save-space',{method:'POST',body:JSON.stringify(payload)});await refreshCatalogue();toast('Espaço salvo.');await spaceManager()}
+    try{await discardPendingUploads(photos);await api('save-space',{method:'POST',body:JSON.stringify(payload)});pendingUploads.clear();$('#modal').removeEventListener('close',cleanupOnClose);await refreshCatalogue();toast('Espaço salvo.');await spaceManager()}
     catch(err){$('.form-error').textContent=err.message;button.disabled=false}
   };
 }
