@@ -237,8 +237,8 @@ try {
 
   if (config.firebase?.apiKey) {
     const [appModule, authModule] = await Promise.all([
-      import('https://www.gstatic.com/firebasejs/10.12.4/app.js'),
-      import('https://www.gstatic.com/firebasejs/10.12.4/auth.js')
+      import('https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js'),
+      import('https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js')
     ]);
 
     const firebaseApp = appModule.initializeApp(config.firebase);
@@ -250,7 +250,7 @@ try {
 
     if (config.firebase.databaseURL) {
       try {
-        const dbModule = await import('https://www.gstatic.com/firebasejs/10.12.4/database.js');
+        const dbModule = await import('https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js');
         sdk = { ...sdk, ...dbModule };
         db = dbModule.getDatabase(firebaseApp);
       } catch (err) {
