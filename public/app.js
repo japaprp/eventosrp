@@ -19,6 +19,14 @@ const photo = (s,w=800) => {
 spaces.forEach(s=>Object.assign(s,{isDemo:true,checkInTime:'09:00',checkOutTime:'09:00',minimumDays:1,cleanupMinutes:0,photos:[],amenities:[],rules:''}));
 let profile={name:'',phone:''};
 let type='', user=null, auth=null, db=null, sdk=null, unsubscribeChat=null, config={}, firebaseStatus='loading', firebaseFailureDetail='';
+function setAuthenticatedUser(nextUser){
+  user=nextUser;
+  const button=$('#login-button');
+  if(!button)return;
+  button.innerHTML=user?'Minha conta <span>↗</span>':'Entrar <span>↗</span>';
+  button.setAttribute('aria-label',user?'Minha conta':'Entrar');
+  button.title=user?'Conta conectada':'';
+}
 function firebaseUnavailableMessage(){if(firebaseStatus==='loading')return 'Conectando ao Firebase. Aguarde alguns segundos e tente novamente.';if(firebaseStatus==='missing')return 'Firebase ainda não configurado.';return 'Não foi possível carregar o Firebase. Diagnóstico: '+(firebaseFailureDetail||'erro sem detalhes')+'.'}
 function firebaseErrorDetail(error){const parts=[];if(typeof error?.code==='string')parts.push(error.code);else if(typeof error?.name==='string')parts.push(error.name);if(typeof error?.message==='string')parts.push(error.message);return parts.join(': ').replace(/AIza[0-9A-Za-z_-]{20,}/g,'[chave oculta]').slice(0,220)||'erro sem detalhes'}
 let favorites;try{favorites=JSON.parse(localStorage.getItem('encontro-favorites')||'[]')}catch{favorites=[]}if(!Array.isArray(favorites))favorites=[];
@@ -53,7 +61,7 @@ function login(after) {
     try{
       const provider=new sdk.GoogleAuthProvider();
       const result=await sdk.signInWithPopup(auth,provider);
-      user=result.user;
+      setAuthenticatedUser(result.user);
       profile={name:user.displayName||'',phone:''};
       try{await api('profile',{method:'POST',body:JSON.stringify(profile)})}
       catch{toast('Conectado via Google. Complete seus dados de contato na reserva.')}
@@ -79,7 +87,7 @@ function login(after) {
     if(creating&&(name.length<2||!validPhone(phone))){error.textContent='Informe seu nome e um celular válido com DDD.';return}
     button.disabled=true;$('#signup').disabled=true;$('#google-signin').disabled=true;
     try{
-      const result=await (creating?sdk.createUserWithEmailAndPassword:sdk.signInWithEmailAndPassword)(auth,$('#email').value.trim(),$('#password').value);user=result.user;
+      const result=await (creating?sdk.createUserWithEmailAndPassword:sdk.signInWithEmailAndPassword)(auth,$('#email').value.trim(),$('#password').value);setAuthenticatedUser(result.user);
       if(creating){
         profile={name,phone};
         try{await sdk.updateProfile(user,{displayName:name});await api('profile',{method:'POST',body:JSON.stringify(profile)})}
@@ -146,7 +154,7 @@ function reservation(s) {
   };
 }
 
-async function account(page){if(!user){login(()=>account(page));return}modal(`<h2>${page==='reservas'?'Minhas reservas':'Meu painel'}</h2><p id="account-email"></p><div id="reservation-list">Carregando...</div><button class="login" id="space-mgmt">Meus espaços ↗</button><button class="login" id="account-logout">Sair</button>`);$('#account-email').textContent=user.email;const [owned,guest]=await Promise.allSettled([api('my-spaces'),api('reservations')]);if(!$('#reservation-list'))return;if(guest.status==='rejected'||!guest.value.length){$('#reservation-list').innerHTML='<p>Você ainda não tem reservas. <a href="javascript:location.reload()">Voltar ao catálogo</a>'}else{$('#reservation-list').innerHTML=guest.value.map(r=>`<div class="reservation-item"><p><strong>${escapeHtml(r.name)}</strong> · ${escapeHtml(r.city)} · ${formatBookingDate(r.check_in)}</p><p class="muted">${r.status==='confirmed'?'Confirmada':r.status==='pending'?'Aguardando confirmação':'Cancelada'}</p><button class="detail-button" onclick="chat(${r.id})">Ver conversa</button></div>`).join('')}$('#space-mgmt').onclick=()=>spaceManager();$('#account-logout').onclick=()=>{sdk.signOut(auth);user=null;location.reload()}}
+async function account(page){if(!user){login(()=>account(page));return}modal(`<h2>${page==='reservas'?'Minhas reservas':'Meu painel'}</h2><p id="account-email"></p><div id="reservation-list">Carregando...</div><button class="login" id="space-mgmt">Meus espaços ↗</button><button class="login" id="account-logout">Sair</button>`);$('#account-email').textContent=user.email;const [owned,guest]=await Promise.allSettled([api('my-spaces'),api('reservations')]);if(!$('#reservation-list'))return;if(guest.status==='rejected'||!guest.value.length){$('#reservation-list').innerHTML='<p>Você ainda não tem reservas. <a href="javascript:location.reload()">Voltar ao catálogo</a>'}else{$('#reservation-list').innerHTML=guest.value.map(r=>`<div class="reservation-item"><p><strong>${escapeHtml(r.name)}</strong> · ${escapeHtml(r.city)} · ${formatBookingDate(r.check_in)}</p><p class="muted">${r.status==='confirmed'?'Confirmada':r.status==='pending'?'Aguardando confirmação':'Cancelada'}</p><button class="detail-button" onclick="chat(${r.id})">Ver conversa</button></div>`).join('')}$('#space-mgmt').onclick=()=>spaceManager();$('#account-logout').onclick=async()=>{await sdk.signOut(auth);setAuthenticatedUser(null);location.reload()}}
 function chat(id){modal('<h2>Conversa da reserva</h2><div class="chat-messages" id="messages" aria-live="polite"></div><form class="form" id="chat-form"><label>Sua mensagem<input id="chat-text" maxlength="2000" placeholder="Envie sua mensagem..." required></label><div class="form-error" role="alert"></div><button class="primary" type="submit">Enviar</button></form>');const messagesDiv=$('#messages');function refresh(){api('chat',{method:'GET',body:JSON.stringify({booking_id:id})}).then(msgs=>{messagesDiv.innerHTML=msgs.map(m=>`<div class="${m.user_id===user.uid?'my-message':'their-message'}"><p>${escapeHtml(m.text)}</p><small>${new Date(m.created_at).toLocaleString('pt-BR')}</small></div>`).join('');messagesDiv.scrollTop=messagesDiv.scrollHeight}).catch(()=>messagesDiv.innerHTML='<p class="muted">Erro ao carregar mensagens.</p>')}refresh();unsubscribeChat=setInterval(refresh,3000);$('#chat-form').onsubmit=async e=>{e.preventDefault();try{await api('chat',{method:'POST',body:JSON.stringify({booking_id:id,text:$('#chat-text').value.trim()})});$('#chat-text').value='';refresh()}catch(e){$('.form-error').textContent=e.message}}}
 const legal={terms:['Termos de uso','Esta plataforma apresenta espaços e permite solicitar locações. O usuário deve fornecer informações corretas, respeitar a capacidade e as regras do local, e aceitar os termos de serviço. Pagamentos são processados via Mercado Pago. Cancelamentos devem ser feitos conforme as regras do host.'],privacy:['Política de privacidade','Seus dados de perfil, reservas e comunicações são armazenados para gerenciar sua conta e reservas. Não compartilhamos dados com terceiros, exceto para pagamento (Mercado Pago) e autenticação (Firebase). Você pode solicitar exclusão a qualquer momento.']};
 $('#login-button').onclick=()=>user?account('reservas'):login();
@@ -247,7 +255,7 @@ try {
     sdk = { ...authModule };
     firebaseStatus = 'ready';
     document.querySelector('#firebase-status')?.remove();
-    sdk.onAuthStateChanged(auth, (u) => { user = u; });
+    sdk.onAuthStateChanged(auth, (u) => { setAuthenticatedUser(u); });
 
     if (config.firebase.databaseURL) {
       try {
