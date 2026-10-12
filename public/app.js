@@ -18,8 +18,9 @@ const photo = (s,w=800) => {
 };
 spaces.forEach(s=>Object.assign(s,{isDemo:true,checkInTime:'09:00',checkOutTime:'09:00',minimumDays:1,cleanupMinutes:0,photos:[],amenities:[],rules:''}));
 let profile={name:'',phone:''};
-let type='', user=null, auth=null, db=null, sdk=null, unsubscribeChat=null, config={}, firebaseStatus='loading';
-function firebaseUnavailableMessage(){if(firebaseStatus==='loading')return 'Conectando ao Firebase. Aguarde alguns segundos e tente novamente.';if(firebaseStatus==='missing')return 'Firebase ainda não configurado.';return 'Não foi possível carregar o Firebase. Recarregue a página e tente novamente.'}
+let type='', user=null, auth=null, db=null, sdk=null, unsubscribeChat=null, config={}, firebaseStatus='loading', firebaseFailureDetail='';
+function firebaseUnavailableMessage(){if(firebaseStatus==='loading')return 'Conectando ao Firebase. Aguarde alguns segundos e tente novamente.';if(firebaseStatus==='missing')return 'Firebase ainda não configurado.';return 'Não foi possível carregar o Firebase. Diagnóstico: '+(firebaseFailureDetail||'erro sem detalhes')+'.'}
+function firebaseErrorDetail(error){const parts=[];if(typeof error?.code==='string')parts.push(error.code);else if(typeof error?.name==='string')parts.push(error.name);if(typeof error?.message==='string')parts.push(error.message);return parts.join(': ').replace(/AIza[0-9A-Za-z_-]{20,}/g,'[chave oculta]').replace(/\\s+/g,' ').slice(0,220)||'erro sem detalhes'}
 let favorites;try{favorites=JSON.parse(localStorage.getItem('encontro-favorites')||'[]')}catch{favorites=[]}if(!Array.isArray(favorites))favorites=[];
 function toast(message){$('#toast').textContent=message;$('#toast').style.display='block';setTimeout(()=>$('#toast').style.display='none',3500)}
 function render(){const list=spaces.filter(s=>(!type||s.type===type)&&(!$('#location').value||s.city===$('#location').value)&&(!$('#event').value||s.events.includes($('#event').value))&&s.capacity>=Number($('#capacity').value||'0'));$('#cards').innerHTML=list.length?list.map(s=>`<div class="card" data-detail="${s.id}"><img src="${escapeHtml(photo(s))}" alt=""><button data-favorite="${s.id}" aria-label="Adicionar aos favoritos" class="${favorites.includes(s.id)?'favorited':''}">♡</button><h3>${escapeHtml(s.name)}</h3><p>${escapeHtml(s.neighborhood||s.city)} · ${escapeHtml(s.type)} · até ${s.capacity} pessoas</p><p class="price">${money(s.price)}<span>/diária</span></p></div>`).join(''):'<p style="grid-column:1/-1;text-align:center;color:var(--muted)">Nenhum espaço encontrado com esses filtros.</p>'}
@@ -262,6 +263,7 @@ try {
   }
 } catch (err) {
   firebaseStatus = 'error';
+  firebaseFailureDetail = firebaseErrorDetail(err);
   console.error('Erro ao inicializar Firebase Authentication:', err);
   config.firebase = null;
   const notice = document.querySelector('#firebase-status');
