@@ -59,8 +59,8 @@ function login(after) {
       catch{toast('Conectado via Google. Complete seus dados de contato na reserva.')}
       $('#modal').close();toast('Bem-vindo '+user.displayName+'!');after?.();
     }catch(e){
-      const errorMessages={'auth/popup-closed-by-user':'Você fechou a janela de login.','auth/popup-blocked':'Abra a janela de pop-up para continuar.','auth/account-exists-with-different-credential':'Este e-mail já existe com outro método.'};
-      $('.form-error').textContent=errorMessages[e.code]||'Não foi possível conectar com Google. Tente novamente.';button.disabled=false;
+      const errorMessages={'auth/popup-closed-by-user':'A janela de login foi fechada antes de concluir.','auth/popup-blocked':'O navegador bloqueou a janela do Google. Permita pop-ups para este site e tente novamente.','auth/account-exists-with-different-credential':'Este e-mail já está cadastrado com outro método de login.','auth/unauthorized-domain':'O domínio eventosrp.onrender.com não está autorizado. No Firebase, abra Authentication → Settings → Authorized domains e adicione eventosrp.onrender.com.','auth/operation-not-allowed':'O provedor Google está desativado. No Firebase, abra Authentication → Sign-in method e habilite Google.','auth/network-request-failed':'Falha de rede ao falar com o Firebase. Verifique a conexão e tente novamente.','auth/operation-not-supported-in-this-environment':'O navegador não permite este método de login. Use um navegador atualizado em HTTPS.'};
+      $('.form-error').textContent=errorMessages[e.code]||'Falha ao entrar com Google ('+(e.code||e.name||'erro sem código')+').';button.disabled=false;
     }
   };
   $('#signup').onclick=()=>{
