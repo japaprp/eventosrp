@@ -29,8 +29,11 @@ function validateSpace(array $input,?string $ownerHash=null): array {
     if(!is_array($photos)||!array_is_list($photos)||count($photos)<1||count($photos)>5)throw new InvalidArgumentException('Adicione de uma a cinco fotos.');
     foreach($photos as $url){
         if(!is_string($url)||strlen($url)>2048)throw new InvalidArgumentException('Confira as fotos do espaço.');
-        if(preg_match('/^api\\.php\\?action=space-photo&owner=([a-f0-9]{64})&id=([a-f0-9]{32})$/',$url,$match)){
-            if($ownerHash===null||!hash_equals($ownerHash,$match[1]))throw new InvalidArgumentException('Envie novamente as fotos deste espaço pela sua conta.');
+        $host=strtolower((string)(parse_url($url,PHP_URL_HOST)??''));
+        if($host==='res.cloudinary.com'){
+            $cloudName=trim((string)env('CLOUDINARY_CLOUD_NAME',''));$path=parse_url($url,PHP_URL_PATH)??'';
+            $pattern='~^/'.preg_quote($cloudName,'~').'/image/upload/(?:v[0-9]+/)?eventosrp/spaces/([a-f0-9]{64})/[a-f0-9]{32}(?:\\.jpg)?$~D';
+            if($ownerHash===null||!preg_match($pattern,$path,$match)||!hash_equals($ownerHash,$match[1]))throw new InvalidArgumentException('Envie novamente as fotos deste espaço pela sua conta.');
         }elseif(!filter_var($url,FILTER_VALIDATE_URL)||strtolower(parse_url($url,PHP_URL_SCHEME)??'')!=='https'||parse_url($url,PHP_URL_USER)!==null)throw new InvalidArgumentException('Use fotos enviadas pelo formulário ou URLs HTTPS válidas.');
     }
     $events=$input['events']??[];$amenities=$input['amenities']??[];
