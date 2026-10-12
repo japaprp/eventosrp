@@ -18,7 +18,8 @@ const photo = (s,w=800) => {
 };
 spaces.forEach(s=>Object.assign(s,{isDemo:true,checkInTime:'09:00',checkOutTime:'09:00',minimumDays:1,cleanupMinutes:0,photos:[],amenities:[],rules:''}));
 let profile={name:'',phone:''};
-let type='', user=null, auth=null, db=null, sdk=null, unsubscribeChat=null, config={};
+let type='', user=null, auth=null, db=null, sdk=null, unsubscribeChat=null, config={}, firebaseStatus='loading';
+function firebaseUnavailableMessage(){if(firebaseStatus==='loading')return 'Conectando ao Firebase. Aguarde alguns segundos e tente novamente.';if(firebaseStatus==='missing')return 'Firebase ainda não configurado.';return 'Não foi possível carregar o Firebase. Recarregue a página e tente novamente.'}
 let favorites;try{favorites=JSON.parse(localStorage.getItem('encontro-favorites')||'[]')}catch{favorites=[]}if(!Array.isArray(favorites))favorites=[];
 function toast(message){$('#toast').textContent=message;$('#toast').style.display='block';setTimeout(()=>$('#toast').style.display='none',3500)}
 function render(){const list=spaces.filter(s=>(!type||s.type===type)&&(!$('#location').value||s.city===$('#location').value)&&(!$('#event').value||s.events.includes($('#event').value))&&s.capacity>=Number($('#capacity').value||'0'));$('#cards').innerHTML=list.length?list.map(s=>`<div class="card" data-detail="${s.id}"><img src="${escapeHtml(photo(s))}" alt=""><button data-favorite="${s.id}" aria-label="Adicionar aos favoritos" class="${favorites.includes(s.id)?'favorited':''}">♡</button><h3>${escapeHtml(s.name)}</h3><p>${escapeHtml(s.neighborhood||s.city)} · ${escapeHtml(s.type)} · até ${s.capacity} pessoas</p><p class="price">${money(s.price)}<span>/diária</span></p></div>`).join(''):'<p style="grid-column:1/-1;text-align:center;color:var(--muted)">Nenhum espaço encontrado com esses filtros.</p>'}
@@ -42,11 +43,11 @@ function login(after) {
       <button type="button" class="login" id="google-signin" style="background:#4285F4;color:white;gap:8px;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg> Entrar com Google</button>
       <button type="button" class="login" id="signup">Criar minha conta</button>
       <button type="button" class="detail-button" id="reset">Esqueci minha senha</button>
-    </form>${!auth?'<p class="notice">O login ficará disponível após a configuração do Firebase. O catálogo pode ser explorado livremente.</p>':''}`);
+    </form>${firebaseStatus!=='ready'?'<p id="firebase-status" class="notice">'+firebaseUnavailableMessage()+'</p>':''}`);
   let creating=false;
   $('#google-signin').onclick=async (e)=>{
     e.preventDefault();
-    if(!auth){$('.form-error').textContent='Firebase ainda não configurado.';return}
+    if(!auth){$('.form-error').textContent=firebaseUnavailableMessage();return}
     const button=$('#google-signin');button.disabled=true;
     try{
       const provider=new sdk.GoogleAuthProvider();
@@ -72,7 +73,7 @@ function login(after) {
   };
   $('#auth-form').onsubmit=async e=>{
     e.preventDefault();const error=$('.form-error'),button=$('#auth-submit');
-    if(!auth){error.textContent='Firebase ainda não configurado.';return}
+    if(!auth){error.textContent=firebaseUnavailableMessage();return}
     const name=creating?$('#signup-name').value.trim():'',phone=creating?$('#signup-phone').value.trim():'';
     if(creating&&(name.length<2||!validPhone(phone))){error.textContent='Informe seu nome e um celular válido com DDD.';return}
     button.disabled=true;$('#signup').disabled=true;$('#google-signin').disabled=true;
@@ -154,7 +155,7 @@ function passwordReset(email='') {
   modal(`<h2>Recuperar minha senha.</h2><p>Informe o e-mail do cadastro para receber um link de recuperação.</p><form class="form" id="reset-form"><label>E-mail<input type="email" id="reset-email" autocomplete="email" required></label><div class="form-error" role="alert"></div><button class="primary" type="submit" id="send-reset">Enviar link</button><button type="button" class="login" id="back-login">Voltar</button></form>`);
   $('#reset-email').value=email;$('#back-login').onclick=()=>login();
   $('#reset-form').onsubmit=async e=>{
-    e.preventDefault();if(!auth){$('.form-error').textContent='Firebase ainda não configurado.';return}
+    e.preventDefault();if(!auth){$('.form-error').textContent=firebaseUnavailableMessage();return}
     const button=$('#send-reset');button.disabled=true;
     try{await sdk.sendPasswordResetEmail(auth,$('#reset-email').value.trim());$('#modal').close();toast('Se houver uma conta com esse e-mail, enviaremos o link de recuperação.')}
     catch{$('.form-error').textContent='Não foi possível enviar o link. Confira o e-mail e tente novamente.';button.disabled=false}
@@ -231,38 +232,40 @@ function spaceForm(space=null){
 
 try {
   const response = await fetch('config.php');
-  if (response.ok) {
-    config = await response.json();
-  }
+  if (!response.ok) throw new Error('config.php respondeu HTTP ' + response.status);
+  config = await response.json();
 
   if (config.firebase?.apiKey) {
-    const appModule = await import('https://www.gstatic.com/firebasejs/10.12.4/app.js');
-    const authModule = await import('https://www.gstatic.com/firebasejs/10.12.4/auth.js');
-    const dbModule = await import('https://www.gstatic.com/firebasejs/10.12.4/database.js');
+    const [appModule, authModule] = await Promise.all([
+      import('https://www.gstatic.com/firebasejs/10.12.4/app.js'),
+      import('https://www.gstatic.com/firebasejs/10.12.4/auth.js')
+    ]);
 
     const firebaseApp = appModule.initializeApp(config.firebase);
     auth = authModule.getAuth(firebaseApp);
-    db = dbModule.getDatabase(firebaseApp);
-
-    sdk = {
-      ...authModule,
-      GoogleAuthProvider: authModule.GoogleAuthProvider,
-      signInWithPopup: authModule.signInWithPopup,
-      signInWithEmailAndPassword: authModule.signInWithEmailAndPassword,
-      createUserWithEmailAndPassword: authModule.createUserWithEmailAndPassword,
-      sendPasswordResetEmail: authModule.sendPasswordResetEmail,
-      updateProfile: authModule.updateProfile,
-      signOut: authModule.signOut,
-      onAuthStateChanged: authModule.onAuthStateChanged
-    };
-
+    sdk = { ...authModule };
+    firebaseStatus = 'ready';
+    document.querySelector('#firebase-status')?.remove();
     sdk.onAuthStateChanged(auth, (u) => { user = u; });
+
+    if (config.firebase.databaseURL) {
+      try {
+        const dbModule = await import('https://www.gstatic.com/firebasejs/10.12.4/database.js');
+        sdk = { ...sdk, ...dbModule };
+        db = dbModule.getDatabase(firebaseApp);
+      } catch (err) {
+        console.warn('Firebase Realtime Database indisponível; autenticação permanece ativa.', err);
+      }
+    }
   } else {
-    config.firebase = null;
+    firebaseStatus = 'missing';
   }
 } catch (err) {
-  console.error('Erro ao inicializar Firebase:', err);
+  firebaseStatus = 'error';
+  console.error('Erro ao inicializar Firebase Authentication:', err);
   config.firebase = null;
+  const notice = document.querySelector('#firebase-status');
+  if (notice) notice.textContent = firebaseUnavailableMessage();
 }
 
 refreshCatalogue();
