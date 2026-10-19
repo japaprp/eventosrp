@@ -30,6 +30,14 @@ function paymentLifecycleApplyVerifiedPayment(PDO $pdo, string $reservationId, a
   $q=$pdo->prepare('SELECT * FROM reservations WHERE id=? FOR UPDATE');$q->execute([$reservationId]);$reservation=$q->fetch(PDO::FETCH_ASSOC);
   if(!$reservation){$pdo->commit();return;}
   if(($payment['currency_id']??'')!=='BRL'||abs((float)($payment['transaction_amount']??-1)-(float)$reservation['total'])>0.001)throw new InvalidArgumentException('Valor ou moeda do pagamento inconsistente.');
+  // A provider payment ID must never be reused across reservations, even if its prior event arrived first.
+  $linkedEvent=$pdo->prepare('SELECT reservation_id FROM reservation_payment_events WHERE payment_id=?');
+  $linkedEvent->execute([$paymentId]);
+  $eventReservation=$linkedEvent->fetchColumn();
+  if($eventReservation!==false&&(string)$eventReservation!==$reservationId)throw new InvalidArgumentException('Pagamento já vinculado a outra reserva.');
+  $linkedReservation=$pdo->prepare('SELECT id FROM reservations WHERE payment_id=? AND id<>? LIMIT 1');
+  $linkedReservation->execute([$paymentId,$reservationId]);
+  if($linkedReservation->fetchColumn())throw new InvalidArgumentException('Pagamento já vinculado a outra reserva.');
   $existingId=isset($reservation['payment_id'])?(string)$reservation['payment_id']:null;
   $eventStateQuery=$pdo->prepare('SELECT provider_status FROM reservation_payment_events WHERE payment_id=? AND reservation_id=?');
   $eventStateQuery->execute([$paymentId,$reservationId]);
