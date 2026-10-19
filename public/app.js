@@ -180,6 +180,7 @@ const legal={terms:['Termos de uso','Esta plataforma apresenta espaços e permit
 $('#login-button').onclick=()=>user?account('reservas'):login();
 document.querySelectorAll('[data-legal]').forEach(b=>b.onclick=()=>{const [title,text]=legal[b.dataset.legal];modal(`<h2>${title}</h2><p>${text}</p>`)});document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{const page=b.dataset.page;if(page==='painel'||page==='spaces')spaceManager();else if(page==='reservas'||page==='account')account('reservas');else if(page==='login')login()});
 const paymentReturn=new URLSearchParams(location.search).get('payment');if(paymentReturn){toast('Consulte suas reservas para acompanhar a confirmação do pagamento.');history.replaceState(null,'',location.pathname)}
+const mpConnectResult=new URLSearchParams(location.search).get('mp_connect');if(mpConnectResult){toast(mpConnectResult==='success'?'Conta Mercado Pago conectada. O split ainda não está ativo.':mpConnectResult==='denied'?'A autorização do Mercado Pago foi cancelada.':'Não foi possível conectar a conta Mercado Pago.');history.replaceState(null,'',location.pathname)}
 function passwordReset(email='') {
   modal(`<h2>Recuperar minha senha.</h2><p>Informe o e-mail do cadastro para receber um link de recuperação.</p><form class="form" id="reset-form"><label>E-mail<input type="email" id="reset-email" autocomplete="email" required></label><div class="form-error" role="alert"></div><button class="primary" type="submit" id="send-reset">Enviar link</button><button type="button" class="login" id="back-login">Voltar</button></form>`);
   $('#reset-email').value=email;$('#back-login').onclick=()=>login();
@@ -203,11 +204,14 @@ async function refreshCatalogue(){
 }
 async function spaceManager(){
   if(!user){login(()=>spaceManager());return}
-  modal('<h2>Meus espaços.</h2><div class="panel-actions"><button class="primary" id="new-space">Cadastrar espaço ↗</button><button class="login" id="back-account">Minhas reservas</button></div><div id="owned-spaces">Carregando...</div><h3 style="margin-top:30px">Reservas recebidas</h3><div id="host-reservations">Carregando...</div>');
+  modal('<h2>Meus espaços.</h2><div class="panel-actions"><button class="primary" id="new-space">Cadastrar espaço ↗</button><button class="login" id="mp-connect">Conectar Mercado Pago</button><button class="login" id="mp-disconnect" hidden>Desconectar deste sistema</button><button class="login" id="back-account">Minhas reservas</button></div><p class="muted" id="mp-account-status">Verificando conexão do anfitrião...</p><div id="owned-spaces">Carregando...</div><h3 style="margin-top:30px">Reservas recebidas</h3><div id="host-reservations">Carregando...</div>');
   $('#new-space').onclick=()=>spaceForm();$('#back-account').onclick=()=>account('reservas');
-  const results=await Promise.allSettled([api('my-spaces'),api('host-reservations')]);
+  $('#mp-disconnect').onclick=async()=>{const button=$('#mp-disconnect');button.disabled=true;try{await api('mp-disconnect',{method:'POST',body:JSON.stringify({})});await spaceManager()}catch(err){const status=$('#mp-account-status');if(status)status.textContent=err.message;button.disabled=false}};
+  $('#mp-connect').onclick=async()=>{const button=$('#mp-connect');button.disabled=true;try{const result=await api('mp-connect');const target=new URL(result.authorization_url);if(target.protocol!=='https:'||target.hostname!=='auth.mercadopago.com.br')throw new Error('Endereço de autorização inválido.');location.href=target.href}catch(err){const status=$('#mp-account-status');if(status)status.textContent=err.message;button.disabled=false}};
+  const results=await Promise.allSettled([api('my-spaces'),api('host-reservations'),api('mp-account')]);
   if(!$('#owned-spaces')||!$('#host-reservations'))return;
-  const [owned,received]=results;
+  const [owned,received,mpAccount]=results;
+  const mpStatus=$('#mp-account-status');if(mpStatus){const connected=mpAccount.status==='fulfilled'&&mpAccount.value.status==='connected';$('#mp-disconnect').hidden=!connected;$('#mp-connect').textContent=connected?'Reconectar Mercado Pago':'Conectar Mercado Pago';if(connected)mpStatus.textContent='Conta Mercado Pago conectada. O split e a comissão ainda não estão ativos.';else if(mpAccount.status==='fulfilled'&&mpAccount.value.status==='reauthorization_required')mpStatus.textContent='A conexão expirou. Reconecte a conta Mercado Pago.';else if(mpAccount.status==='fulfilled'&&mpAccount.value.status==='disconnected')mpStatus.textContent='Tokens removidos deste sistema. Para revogar a autorização no Mercado Pago, remova a aplicação nas configurações da sua conta.';else if(mpAccount.status==='rejected')mpStatus.textContent='Não foi possível consultar a conexão Mercado Pago.';else mpStatus.textContent='Conecte a conta Mercado Pago do anfitrião para preparar futuros repasses.'}
   if(owned.status==='rejected')$('#owned-spaces').textContent=owned.reason.message;
   else{
     const box=$('#owned-spaces');box.textContent=owned.value.length?'':'Você ainda não cadastrou espaços.';

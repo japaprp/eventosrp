@@ -7,6 +7,8 @@ require dirname(__DIR__).'/src/bootstrap.php';
 require dirname(__DIR__).'/src/booking.php';
 require dirname(__DIR__).'/src/spaces.php';
 require dirname(__DIR__).'/src/payment_lifecycle.php';
+require dirname(__DIR__).'/src/marketplace_finance.php';
+require dirname(__DIR__).'/src/marketplace_oauth.php';
 date_default_timezone_set('America/Sao_Paulo');
 
 function paymentLifecycleRecordEvent(PDO $pdo, string $reservationId, array $payment): void {
@@ -14,7 +16,7 @@ function paymentLifecycleRecordEvent(PDO $pdo, string $reservationId, array $pay
  if($paymentId===''||$status==='')throw new InvalidArgumentException('Evento de pagamento incompleto.');
  $now=(new DateTimeImmutable('now',new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
  $detail=isset($payment['status_detail'])?substr((string)$payment['status_detail'],0,100):null;
- $q=$pdo->prepare('INSERT INTO reservation_payment_events(reservation_id,payment_id,provider_status,status_detail,amount,currency,event_count,first_seen_at,last_seen_at) VALUES (?,?,?,?,?,?,1,?,?) ON DUPLICATE KEY UPDATE provider_status=VALUES(provider_status),status_detail=VALUES(status_detail),amount=VALUES(amount),currency=VALUES(currency),event_count=event_count+1,last_seen_at=VALUES(last_seen_at)');
+ $q=$pdo->prepare("INSERT INTO reservation_payment_events(reservation_id,payment_id,provider_status,status_detail,amount,currency,event_count,first_seen_at,last_seen_at) VALUES (?,?,?,?,?,?,1,?,?) ON DUPLICATE KEY UPDATE provider_status=IF((provider_status='charged_back' AND VALUES(provider_status)<>provider_status) OR (provider_status='refunded' AND VALUES(provider_status) NOT IN ('refunded','charged_back')) OR (provider_status='approved' AND VALUES(provider_status) IN ('pending','in_process','rejected','cancelled')),provider_status,VALUES(provider_status)),status_detail=IF((provider_status='charged_back' AND VALUES(provider_status)<>provider_status) OR (provider_status='refunded' AND VALUES(provider_status) NOT IN ('refunded','charged_back')) OR (provider_status='approved' AND VALUES(provider_status) IN ('pending','in_process','rejected','cancelled')),status_detail,VALUES(status_detail)),amount=VALUES(amount),currency=VALUES(currency),event_count=event_count+1,last_seen_at=VALUES(last_seen_at)");
  $q->execute([$reservationId,$paymentId,$status,$detail,number_format((float)($payment['transaction_amount']??0),2,'.',''),(string)($payment['currency_id']??''),$now,$now]);
 }
 function paymentLifecycleApplyVerifiedPayment(PDO $pdo, string $reservationId, array $payment): void {
@@ -28,6 +30,27 @@ function paymentLifecycleApplyVerifiedPayment(PDO $pdo, string $reservationId, a
   $q=$pdo->prepare('SELECT * FROM reservations WHERE id=? FOR UPDATE');$q->execute([$reservationId]);$reservation=$q->fetch(PDO::FETCH_ASSOC);
   if(!$reservation){$pdo->commit();return;}
   if(($payment['currency_id']??'')!=='BRL'||abs((float)($payment['transaction_amount']??-1)-(float)$reservation['total'])>0.001)throw new InvalidArgumentException('Valor ou moeda do pagamento inconsistente.');
+  // A provider payment ID must never be reused across reservations, even if its prior event arrived first.
+  $linkedEvent=$pdo->prepare('SELECT reservation_id FROM reservation_payment_events WHERE payment_id=?');
+  $linkedEvent->execute([$paymentId]);
+  $eventReservation=$linkedEvent->fetchColumn();
+  if($eventReservation!==false&&(string)$eventReservation!==$reservationId)throw new InvalidArgumentException('Pagamento já vinculado a outra reserva.');
+  $linkedReservation=$pdo->prepare('SELECT id FROM reservations WHERE payment_id=? AND id<>? LIMIT 1');
+  $linkedReservation->execute([$paymentId,$reservationId]);
+  if($linkedReservation->fetchColumn())throw new InvalidArgumentException('Pagamento já vinculado a outra reserva.');
+  $existingId=isset($reservation['payment_id'])?(string)$reservation['payment_id']:null;
+  $eventStateQuery=$pdo->prepare('SELECT provider_status FROM reservation_payment_events WHERE payment_id=? AND reservation_id=?');
+  $eventStateQuery->execute([$paymentId,$reservationId]);
+  $previousEventStatus=$eventStateQuery->fetchColumn();
+  $staleAgainstReservation=$existingId===$paymentId
+   && paymentLifecycleIsStaleStatus(isset($reservation['payment_status'])?(string)$reservation['payment_status']:null,$status);
+  $staleAgainstEvent=is_string($previousEventStatus)
+   && paymentLifecycleIsStaleStatus($previousEventStatus,$status);
+  if($staleAgainstReservation||$staleAgainstEvent){
+   paymentLifecycleRecordEvent($pdo,$reservationId,$payment);
+   $pdo->commit();
+   return;
+  }
   paymentLifecycleRecordEvent($pdo,$reservationId,$payment);
   $existingId=isset($reservation['payment_id'])?(string)$reservation['payment_id']:null;
   $conflict=false;
@@ -101,8 +124,26 @@ function paymentLifecycleReconcileExpiredHold(PDO $pdo, array $reservation): voi
   try{$preferenceDeadline=new DateTimeImmutable((string)$preference['expiration_date_to']);}catch(Throwable){return;}
   if($preferenceDeadline>$now)return;
   if(!paymentLifecycleCanReleaseHold('pending',(string)$fresh['hold_expires_at'],true,$payments,$now))return;
-  $q=$pdo->prepare("UPDATE reservations SET status='expired' WHERE id=? AND status='pending' AND payment_attention='none' AND hold_expires_at<=?");
-  $q->execute([$reservationId,$now->format('Y-m-d H:i:s')]);
+  // Serialize final expiry with webhook processing for this space, then re-read state under lock.
+  $pdo->beginTransaction();
+  try{
+   $spaceLock=$pdo->prepare('SELECT id FROM spaces WHERE id=? FOR UPDATE');
+   $spaceLock->execute([(int)$fresh['space_id']]);
+   $reservationLock=$pdo->prepare('SELECT * FROM reservations WHERE id=? FOR UPDATE');
+   $reservationLock->execute([$reservationId]);
+   $locked=$reservationLock->fetch(PDO::FETCH_ASSOC);
+   if(!$locked||$locked['status']!=='pending'||$locked['payment_attention']!=='none'||empty($locked['hold_expires_at'])){$pdo->commit();return;}
+   $lockedDeadline=new DateTimeImmutable((string)$locked['hold_expires_at'],new DateTimeZone('America/Sao_Paulo'));
+   if($lockedDeadline>$now){$pdo->commit();return;}
+   if(!empty($locked['payment_status'])&&!in_array($locked['payment_status'],['rejected','cancelled'],true)){$pdo->commit();return;}
+   $eventQuery=$pdo->prepare('SELECT provider_status AS status FROM reservation_payment_events WHERE reservation_id=?');
+   $eventQuery->execute([$reservationId]);
+   $recordedPayments=$eventQuery->fetchAll(PDO::FETCH_ASSOC);
+   if(!paymentLifecycleCanReleaseHold('pending',(string)$locked['hold_expires_at'],true,array_merge($payments,$recordedPayments),$now)){$pdo->commit();return;}
+   $q=$pdo->prepare("UPDATE reservations SET status='expired' WHERE id=? AND status='pending' AND payment_attention='none' AND hold_expires_at<=?");
+   $q->execute([$reservationId,$now->format('Y-m-d H:i:s')]);
+   $pdo->commit();
+  }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
  }catch(Throwable $e){error_log('Encontro payment reconciliation: '.get_class($e));}
 }
 function paymentLifecycleReconcileOverlappingHolds(PDO $pdo, int $spaceId, string $checkIn, string $blockedUntil): void {
@@ -129,14 +170,37 @@ try {
   try{paymentLifecycleApplyVerifiedPayment($pdo,$reference,$payment);}catch(InvalidArgumentException $e){respond(['error'=>'Pagamento inconsistente.'],400);}
   respond(['received'=>true]);
  }
- if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations'],true))respond(['error'=>'Rota não encontrada.'],404);
- if((in_array($action,['my-spaces','host-reservations'],true)&&$method!=='GET')||($action==='save-space'&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
+ if($action==='mp-oauth-callback') {
+  if($method!=='GET')respond(['error'=>'Método não permitido.'],405);
+  $appUrl=rtrim(env('APP_URL'),'/');
+  if(!str_starts_with($appUrl,'https://'))respond(['error'=>'Callback OAuth exige APP_URL com HTTPS.'],503);
+  try {
+   if(isset($_GET['error'])) {
+    if(isset($_GET['state']))marketplaceConsumeOAuthState(database(),(string)$_GET['state']);
+    header('Location: '.$appUrl.'/?mp_connect=denied',true,302);exit;
+   }
+   marketplaceOAuthComplete(database(),(string)($_GET['code']??''),(string)($_GET['state']??''));
+   header('Location: '.$appUrl.'/?mp_connect=success',true,302);exit;
+  } catch(Throwable $e) {
+   error_log('Encontro marketplace OAuth callback: '.get_class($e));
+   header('Location: '.$appUrl.'/?mp_connect=error',true,302);exit;
+  }
+ }
+ if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations','mp-connect','mp-account','mp-disconnect'],true))respond(['error'=>'Rota não encontrada.'],404);
+ if((in_array($action,['my-spaces','host-reservations','mp-connect','mp-account'],true)&&$method!=='GET')||($action==='mp-disconnect'&&$method!=='POST')||($action==='save-space'&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
  if(($action==='reserve'&&$method!=='POST')||($action==='reservations'&&$method!=='GET')||($action==='profile'&&!in_array($method,['GET','POST'],true)))respond(['error'=>'Método não permitido.'],405);
  $header=$_SERVER['HTTP_AUTHORIZATION']??'';if(!preg_match('/^Bearer (.+)$/',$header,$match))respond(['error'=>'Entre na sua conta.'],401);
  try{$token=firebase()->createAuth()->verifyIdToken($match[1],true);}catch(Throwable $e){respond(['error'=>'Sessão inválida. Entre novamente.'],401);}
  $uid=$token->claims()->get('sub');$email=$token->claims()->get('email','');$pdo=database();
  $q=$pdo->prepare('INSERT INTO users(firebase_uid,email) VALUES (?,?) ON DUPLICATE KEY UPDATE email=VALUES(email)');$q->execute([$uid,$email]);
  $q=$pdo->prepare('SELECT id FROM users WHERE firebase_uid=?');$q->execute([$uid]);$userId=$q->fetchColumn();
+ if($action==='mp-account')respond(marketplaceSellerAccountSummary($pdo,(int)$userId));
+ if($action==='mp-disconnect'){marketplaceDisconnectSellerAccount($pdo,(int)$userId);respond(['status'=>'disconnected']);}
+ if($action==='mp-connect'){
+  try{respond(['authorization_url'=>marketplaceOAuthStart($pdo,(int)$userId)]);}
+  catch(DomainException $e){respond(['error'=>$e->getMessage()],403);}
+  catch(Throwable $e){error_log('Encontro marketplace OAuth start: '.get_class($e));respond(['error'=>'Conexão do Mercado Pago ainda não configurada.'],503);}
+ }
  if($action==='my-spaces'){$q=$pdo->prepare('SELECT * FROM spaces WHERE owner_id=? ORDER BY id DESC');$q->execute([$userId]);respond(array_map('publicSpace',$q->fetchAll(PDO::FETCH_ASSOC)));}
  if($action==='host-reservations'){$q=$pdo->prepare('SELECT r.id,r.check_in,r.check_out,r.plan,r.billable_days,r.total,r.status,r.payment_status,r.payment_attention,r.contact_name,r.guests,s.name FROM reservations r JOIN spaces s ON s.id=r.space_id WHERE s.owner_id=? ORDER BY r.created_at DESC');$q->execute([$userId]);respond($q->fetchAll(PDO::FETCH_ASSOC));}
  if($action==='save-space'){

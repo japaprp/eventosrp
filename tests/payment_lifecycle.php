@@ -22,6 +22,19 @@ foreach ($cases as [$reservationStatus,$paymentStatus,$existingId,$incomingId,$c
     $actual = paymentLifecycleDecision($reservationStatus,$paymentStatus,$existingId,$incomingId,$conflict);
     if ($actual !== $expected) throw new RuntimeException("Transição inesperada: {$reservationStatus}/{$paymentStatus}; esperado {$expected}, recebido {$actual}");
 }
+$staleStatusCases = [
+    ['approved','pending',true], ['approved','rejected',true],
+    ['refunded','approved',true], ['refunded','pending',true],
+    ['refunded','charged_back',false], ['charged_back','refunded',true],
+    ['charged_back','in_process',true], ['charged_back','approved',true],
+    ['approved','refunded',false], ['approved','charged_back',false],
+    ['pending','approved',false], [null,'pending',false],
+];
+foreach ($staleStatusCases as [$existing,$incoming,$expected]) {
+    if (paymentLifecycleIsStaleStatus($existing,$incoming) !== $expected) {
+        throw new RuntimeException('Regra de notificação atrasada incorreta.');
+    }
+}
 $now = new DateTimeImmutable('2026-10-19T12:00:00-03:00');
 $expiredHold = '2026-10-19 11:00:00';
 $futureHold = '2026-10-19 13:00:00';
