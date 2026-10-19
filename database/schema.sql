@@ -86,4 +86,5 @@ CREATE TABLE space_promotions (
  CHECK(daily_price > 0),
  CHECK(ends_at IS NULL OR starts_at IS NULL OR ends_at > starts_at)
 );
-\nINSERT INTO spaces(id,name,capacity,daily_price,city,type) VALUES (1,'Casa Jardim',150,2800,'São Paulo','Ao ar livre'),(2,'Espaço Aurora',300,4500,'São Paulo','Salão'),(3,'Terraço Horizonte',100,3200,'São Paulo','Rooftop'),(4,'Estação Criativa',50,1200,'Campinas','Corporativo'),(5,'Recanto das Oliveiras',200,3800,'São José dos Campos','Ao ar livre'),(6,'Salão Essência',200,2500,'Campinas','Salão'),(7,'Recanto Ribeirão',150,1800,'Ribeirão Preto','Ao ar livre'),(8,'Espaço Ipê',200,2300,'Ribeirão Preto','Salão');
+
+INSERT INTO spaces(id,name,capacity,daily_price,city,type) VALUES (1,'Casa Jardim',150,2800,'São Paulo','Ao ar livre'),(2,'Espaço Aurora',300,4500,'São Paulo','Salão'),(3,'Terraço Horizonte',100,3200,'São Paulo','Rooftop'),(4,'Estação Criativa',50,1200,'Campinas','Corporativo'),(5,'Recanto das Oliveiras',200,3800,'São José dos Campos','Ao ar livre'),(6,'Salão Essência',200,2500,'Campinas','Salão'),(7,'Recanto Ribeirão',150,1800,'Ribeirão Preto','Ao ar livre'),(8,'Espaço Ipê',200,2300,'Ribeirão Preto','Salão');
