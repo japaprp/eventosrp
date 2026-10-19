@@ -70,3 +70,79 @@ function marketplaceLedgerIdempotencyKey(string $entryType, string $providerPaym
     }
     return hash('sha256', $entryType . "\0" . $providerPaymentId . "\0" . $providerEventId);
 }
+
+function marketplaceSignedMoneyToCents(string $amount): int {
+    if (!preg_match('/^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,2})?$/', $amount)) {
+        throw new InvalidArgumentException('Valor contábil inválido.');
+    }
+    $negative = str_starts_with($amount, '-');
+    $absolute = $negative ? substr($amount, 1) : $amount;
+    $cents = marketplaceMoneyToCents($absolute);
+    return $negative ? -$cents : $cents;
+}
+
+/**
+ * Append one immutable financial event. Reversals are separate rows; a repeated
+ * idempotency key returns the original row only if the financial payload matches.
+ */
+function marketplaceRecordLedgerEntry(PDO $pdo, array $entry): int {
+    $reservationId = (string)($entry['reservation_id'] ?? '');
+    $ownerId = filter_var($entry['owner_id'] ?? null, FILTER_VALIDATE_INT);
+    $paymentId = trim((string)($entry['provider_payment_id'] ?? ''));
+    $eventId = trim((string)($entry['provider_event_id'] ?? ''));
+    $type = (string)($entry['entry_type'] ?? '');
+    if (!preg_match('/^[a-f0-9]{32}$/', $reservationId) || !$ownerId || $ownerId < 1
+        || $paymentId === '' || strlen($paymentId) > 100 || $eventId === '' || strlen($eventId) > 150) {
+        throw new InvalidArgumentException('Referências do ledger inválidas.');
+    }
+    $key = marketplaceLedgerIdempotencyKey($type, $paymentId, $eventId);
+    $gross = marketplaceSignedMoneyToCents((string)($entry['gross_amount'] ?? ''));
+    $commission = marketplaceSignedMoneyToCents((string)($entry['commission_amount'] ?? ''));
+    $providerFee = array_key_exists('provider_fee_amount', $entry) && $entry['provider_fee_amount'] !== null
+        ? marketplaceSignedMoneyToCents((string)$entry['provider_fee_amount']) : null;
+    $hostNet = array_key_exists('host_net_estimate', $entry) && $entry['host_net_estimate'] !== null
+        ? marketplaceSignedMoneyToCents((string)$entry['host_net_estimate']) : null;
+    $rate = $entry['commission_rate_bps'] ?? null;
+    if ($rate !== null && (!is_int($rate) || $rate < 0 || $rate > 3000)) {
+        throw new InvalidArgumentException('Taxa do ledger inválida.');
+    }
+    if ($type === 'commission_accrual' && $commission < 0) {
+        throw new InvalidArgumentException('Acréscimo de comissão não pode ser negativo.');
+    }
+    if (in_array($type, ['refund_reversal','chargeback_reversal'], true) && $commission > 0) {
+        throw new InvalidArgumentException('Estorno de comissão precisa ter valor negativo ou zero.');
+    }
+    $reverses = $entry['reverses_entry_id'] ?? null;
+    if ($reverses !== null && (!filter_var($reverses, FILTER_VALIDATE_INT) || $reverses < 1)) {
+        throw new InvalidArgumentException('Referência de estorno inválida.');
+    }
+    $metadata = $entry['metadata'] ?? null;
+    if ($metadata !== null && !is_array($metadata)) throw new InvalidArgumentException('Metadados do ledger inválidos.');
+    $metadataJson = $metadata === null ? null : json_encode($metadata, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+    $values = [
+        $reservationId,(int)$ownerId,$paymentId,$eventId,$type,'BRL',
+        marketplaceCentsToMoney($gross),$providerFee === null ? null : marketplaceCentsToMoney($providerFee),
+        $rate,$commission === 0 ? '0.00' : marketplaceCentsToMoney($commission),
+        $hostNet === null ? null : marketplaceCentsToMoney($hostNet),$key,$reverses,$metadataJson,
+    ];
+    try {
+        $q = $pdo->prepare('INSERT INTO marketplace_commission_ledger(reservation_id,owner_id,provider_payment_id,provider_event_id,entry_type,currency,gross_amount,provider_fee_amount,commission_rate_bps,commission_amount,host_net_estimate,idempotency_key,reverses_entry_id,metadata) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        $q->execute($values);
+        return (int)$pdo->lastInsertId();
+    } catch (PDOException $e) {
+        if ($e->getCode() !== '23000') throw $e;
+        $q = $pdo->prepare('SELECT id,reservation_id,owner_id,provider_payment_id,provider_event_id,entry_type,gross_amount,commission_amount FROM marketplace_commission_ledger WHERE idempotency_key=?');
+        $q->execute([$key]);
+        $existing = $q->fetch(PDO::FETCH_ASSOC);
+        if (!$existing) throw $e;
+        $matches = $existing['reservation_id'] === $reservationId
+            && (int)$existing['owner_id'] === (int)$ownerId
+            && $existing['provider_payment_id'] === $paymentId
+            && $existing['provider_event_id'] === $eventId
+            && $existing['entry_type'] === $type
+            && marketplaceMoneyToCents((string)$existing['gross_amount']) === $gross
+            && marketplaceSignedMoneyToCents((string)$existing['commission_amount']) === $commission;
+        if (!$matches) throw new RuntimeException('Colisão de idempotência no ledger financeiro.');
+        return (int)$existing['id'];
+    }
+}
