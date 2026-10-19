@@ -129,6 +129,20 @@ try {
   try{paymentLifecycleApplyVerifiedPayment($pdo,$reference,$payment);}catch(InvalidArgumentException $e){respond(['error'=>'Pagamento inconsistente.'],400);}
   respond(['received'=>true]);
  }
+ if($action==='reconcile-expired-holds') {
+  if($method!=='POST')respond(['error'=>'Método não permitido.'],405);
+  $configuredSecret=env('RESERVATION_RECONCILE_SECRET');
+  $providedHeader=$_SERVER['HTTP_AUTHORIZATION']??'';
+  if(strlen($configuredSecret)<32)respond(['error'=>'Reconciliação agendada não configurada.'],503);
+  if(!preg_match('/^Bearer (.+)$/',$providedHeader,$secretMatch)||!hash_equals($configuredSecret,$secretMatch[1]))respond(['error'=>'Não autorizado.'],401);
+  $pdo=database();
+  $now=(new DateTimeImmutable('now',new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
+  $q=$pdo->prepare("SELECT * FROM reservations WHERE status='pending' AND hold_expires_at IS NOT NULL AND hold_expires_at<=? ORDER BY hold_expires_at ASC LIMIT 5");
+  $q->execute([$now]);
+  $due=$q->fetchAll(PDO::FETCH_ASSOC);
+  foreach($due as $reservation)paymentLifecycleReconcileExpiredHold($pdo,$reservation);
+  respond(['received'=>true,'attempted'=>count($due)]);
+ }
  if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations'],true))respond(['error'=>'Rota não encontrada.'],404);
  if((in_array($action,['my-spaces','host-reservations'],true)&&$method!=='GET')||($action==='save-space'&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
  if(($action==='reserve'&&$method!=='POST')||($action==='reservations'&&$method!=='GET')||($action==='profile'&&!in_array($method,['GET','POST'],true)))respond(['error'=>'Método não permitido.'],405);
