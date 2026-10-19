@@ -85,6 +85,18 @@ function marketplaceSignedMoneyToCents(string $amount): int {
  * Append one immutable financial event. Reversals are separate rows; a repeated
  * idempotency key returns the original row only if the financial payload matches.
  */
+function marketplaceCanonicalizeJson(mixed $value): mixed {
+    if (!is_array($value)) return $value;
+    if (array_is_list($value)) return array_map('marketplaceCanonicalizeJson', $value);
+    ksort($value, SORT_STRING);
+    foreach ($value as $key => $item) $value[$key] = marketplaceCanonicalizeJson($item);
+    return $value;
+}
+
+function marketplaceCanonicalJson(mixed $value): ?string {
+    return $value === null ? null : json_encode(marketplaceCanonicalizeJson($value), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}
+
 function marketplaceRecordLedgerEntry(PDO $pdo, array $entry): int {
     $reservationId = (string)($entry['reservation_id'] ?? '');
     $ownerId = filter_var($entry['owner_id'] ?? null, FILTER_VALIDATE_INT);
@@ -124,7 +136,7 @@ function marketplaceRecordLedgerEntry(PDO $pdo, array $entry): int {
     }
     $metadata = $entry['metadata'] ?? null;
     if ($metadata !== null && !is_array($metadata)) throw new InvalidArgumentException('Metadados do ledger inválidos.');
-    $metadataJson = $metadata === null ? null : json_encode($metadata, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+    $metadataJson = marketplaceCanonicalJson($metadata);
     $values = [
         $reservationId,(int)$ownerId,$paymentId,$eventId,$type,'BRL',
         marketplaceCentsToMoney($gross),$providerFee === null ? null : marketplaceCentsToMoney($providerFee),
@@ -151,7 +163,7 @@ function marketplaceRecordLedgerEntry(PDO $pdo, array $entry): int {
             && marketplaceSignedMoneyToCents((string)$existing['commission_amount']) === $commission
             && (($existing['host_net_estimate'] === null ? null : marketplaceSignedMoneyToCents((string)$existing['host_net_estimate'])) === $hostNet)
             && (($existing['reverses_entry_id'] === null ? null : (int)$existing['reverses_entry_id']) === ($reverses === null ? null : (int)$reverses))
-            && (($existing['metadata'] === null ? null : (string)$existing['metadata']) === $metadataJson);
+            && (($existing['metadata'] === null ? null : marketplaceCanonicalJson(json_decode((string)$existing['metadata'], true, 512, JSON_THROW_ON_ERROR))) === $metadataJson);
         if (!$matches) throw new RuntimeException('Colisão de idempotência no ledger financeiro.');
         return (int)$existing['id'];
     }
