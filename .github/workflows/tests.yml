@@ -26,6 +26,8 @@ jobs:
         run: php tests/booking.php
       - name: Test space validation
         run: php tests/spaces.php
+      - name: Test payment lifecycle
+        run: php tests/payment_lifecycle.php
 
   frontend-tests:
     name: Frontend regression tests
