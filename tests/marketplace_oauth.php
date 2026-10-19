@@ -37,19 +37,25 @@ if (strlen($verifier) < 43 || strlen($verifier) > 128 || !preg_match('/^[A-Za-z0
 
 $pdo = new PDO('sqlite::memory:');
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$pdo->exec('CREATE TABLE spaces (id INTEGER PRIMARY KEY, owner_id INTEGER, is_demo INTEGER)');
+$pdo->exec('INSERT INTO spaces(id,owner_id,is_demo) VALUES (1,42,0)');
 $pdo->exec('CREATE TABLE marketplace_oauth_states (
  state_hash TEXT PRIMARY KEY, owner_id INTEGER NOT NULL, code_verifier_encrypted TEXT NOT NULL,
  expires_at TEXT NOT NULL, used_at TEXT NULL
 )');
-$state = bin2hex(random_bytes(32));
-$stateVerifier = marketplaceBase64Url(random_bytes(48));
-$stateHash = hash('sha256', $state);
-$expiry = (new DateTimeImmutable('+5 minutes'))->format('Y-m-d H:i:s');
-$q = $pdo->prepare('INSERT INTO marketplace_oauth_states(state_hash,owner_id,code_verifier_encrypted,expires_at) VALUES (?,?,?,?)');
-$q->execute([$stateHash,42,marketplaceEncryptSecret($stateVerifier,$master),$expiry]);
+$config = marketplaceOAuthConfiguration();
+assertOAuthSame(true,$config['test_token'],'OAuth precisa iniciar em modo sandbox por padrão');
+$authUrl = marketplaceOAuthStart($pdo,42);
+$parts = parse_url($authUrl);
+parse_str($parts['query'] ?? '', $query);
+assertOAuthSame('auth.mercadopago.com.br',$parts['host'] ?? null,'Host de autorização precisa ser Mercado Pago');
+assertOAuthSame('S256',$query['code_challenge_method'] ?? null,'OAuth precisa usar PKCE S256');
+assertOAuthSame('offline_access',$query['scope'] ?? null,'OAuth precisa solicitar renovação offline');
+$state = (string)($query['state'] ?? '');
+if (!preg_match('/^[a-f0-9]{64}$/',$state) || empty($query['code_challenge'])) throw new RuntimeException('URL OAuth precisa conter state e challenge.');
 $consumed = marketplaceConsumeOAuthState($pdo,$state);
 assertOAuthSame(42,$consumed['owner_id'],'State deve retornar o usuário dono');
-assertOAuthSame($stateVerifier,$consumed['code_verifier'],'State deve recuperar o verifier');
+if (strlen($consumed['code_verifier']) < 43) throw new RuntimeException('Verifier PKCE não foi recuperado.');
 assertOAuthInvalid(fn() => marketplaceConsumeOAuthState($pdo,$state),'State consumido não pode ser reutilizado');
 assertOAuthInvalid(fn() => marketplaceConsumeOAuthState($pdo,str_repeat('0',64)),'State desconhecido deve falhar');
 $expiredState = bin2hex(random_bytes(32));
