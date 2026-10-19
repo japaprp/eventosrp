@@ -64,4 +64,23 @@ $q = $pdo->prepare('INSERT INTO marketplace_oauth_states(state_hash,owner_id,cod
 $q->execute([hash('sha256',$expiredState),43,marketplaceEncryptSecret($stateVerifier,$master),(new DateTimeImmutable('-1 minute', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s')]);
 assertOAuthInvalid(fn() => marketplaceConsumeOAuthState($pdo,$expiredState),'State expirado deve falhar');
 
-echo "Criptografia, PKCE, expiração e replay de OAuth passaram.\n";
+// Seller identity must be unique across hosts; a conflict must not overwrite the original host row.
+$pdo->exec("CREATE TABLE marketplace_seller_accounts (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id INTEGER NOT NULL UNIQUE,
+ seller_user_id TEXT UNIQUE, access_token_encrypted TEXT, refresh_token_encrypted TEXT,
+ token_expires_at TEXT, status TEXT NOT NULL, connected_at TEXT
+)");
+marketplaceStoreSellerAccount($pdo,42,'123456','access-token-host-42','refresh-token-host-42','2026-10-20 12:00:00','2026-10-19 12:00:00');
+assertOAuthInvalid(
+    fn() => marketplaceStoreSellerAccount($pdo,43,'123456','attacker-access','attacker-refresh','2026-10-20 12:00:00','2026-10-19 12:00:00'),
+    'Uma conta de vendedor não pode ser vinculada a dois anfitriões'
+);
+$q = $pdo->prepare('SELECT owner_id,access_token_encrypted,refresh_token_encrypted FROM marketplace_seller_accounts WHERE seller_user_id=?');
+$q->execute(['123456']);
+$sellerRow = $q->fetch(PDO::FETCH_ASSOC);
+assertOAuthSame(42,(int)$sellerRow['owner_id'],'A conexão original deve continuar no anfitrião correto');
+assertOAuthSame('access-token-host-42',$sellerRow['access_token_encrypted'],'Conflito não pode substituir o token do anfitrião original');
+assertOAuthSame('refresh-token-host-42',$sellerRow['refresh_token_encrypted'],'Conflito não pode substituir o refresh token original');
+assertOAuthSame(1,(int)$pdo->query('SELECT COUNT(*) FROM marketplace_seller_accounts')->fetchColumn(),'Conflito não deve criar uma segunda conta');
+
+echo "Criptografia, PKCE, expiração, replay e isolamento de contas OAuth passaram.\n";
