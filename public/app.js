@@ -103,9 +103,9 @@ function login(after) {
 }
 function validPhone(value){return /^(?:55)?[1-9][0-9][0-9]{8,9}$/.test(value.replace(/\D/g,''))}
 function reservationStatusLabel(reservation){
-  if(reservation.payment_attention==='refund_required')return 'Pagamento requer atendimento para reembolso';
-  if(reservation.payment_attention==='chargeback')return 'Pagamento contestado — revisão necessária';
-  if(reservation.payment_attention==='review_required')return 'Pagamento em revisão';
+  if(reservation.payment_attention==='refund_required')return reservation.status==='approved'?'Confirmada — há pagamento a reembolsar':'Pagamento requer atendimento para reembolso';
+  if(reservation.payment_attention==='chargeback')return reservation.status==='approved'?'Confirmada — pagamento contestado; revisão necessária':'Pagamento contestado — revisão necessária';
+  if(reservation.payment_attention==='review_required')return reservation.status==='approved'?'Confirmada — pagamento em revisão':'Pagamento em revisão';
   if(reservation.status==='approved')return 'Confirmada';
   if(reservation.status==='pending')return ['in_process','pending','authorized','in_mediation'].includes(reservation.payment_status)?'Pagamento em processamento':'Aguardando pagamento';
   if(reservation.status==='expired')return 'Expirada';
