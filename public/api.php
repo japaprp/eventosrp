@@ -66,9 +66,15 @@ function paymentLifecycleApplyVerifiedPayment(PDO $pdo, string $reservationId, a
    }
   }elseif($decision==='preserve_approved_booking'){
    if($existingId===$paymentId){
-    $attention=in_array($status,['refunded','charged_back'],true)?($status==='charged_back'?'chargeback':'review_required'):'none';
-    $q=$pdo->prepare('UPDATE reservations SET payment_status=?,payment_status_detail=?,payment_updated_at=?,payment_attention=? WHERE id=?');
-    $q->execute([$status,$detail,$now,$attention,$reservationId]);
+    // Never let a delayed/older non-terminal event downgrade a payment already recorded as approved.
+    // Explicit refund/chargeback outcomes remain actionable and require review.
+    if($reservation['payment_status']==='approved'&&!in_array($status,['refunded','charged_back'],true)){
+     // Preserve the approved financial state; the event remains recorded for audit.
+    }else{
+     $attention=in_array($status,['refunded','charged_back'],true)?($status==='charged_back'?'chargeback':'review_required'):'none';
+     $q=$pdo->prepare('UPDATE reservations SET payment_status=?,payment_status_detail=?,payment_updated_at=?,payment_attention=? WHERE id=?');
+     $q->execute([$status,$detail,$now,$attention,$reservationId]);
+    }
    }
   }elseif(in_array($decision,['keep_hold','keep_until_preference_expiry'],true)){
    if($reservation['status']==='pending'&&($existingId===null||$existingId===$paymentId)){
