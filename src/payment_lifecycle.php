@@ -60,3 +60,9 @@ function paymentLifecycleCanReleaseHold(
     }
     return true;
 }
+
+/** Ignore delayed provider notifications that would downgrade a known terminal payment state. */
+function paymentLifecycleIsStaleStatus(?string $existingStatus, string $incomingStatus): bool {
+    return in_array($existingStatus, ['approved', 'refunded', 'charged_back'], true)
+        && in_array($incomingStatus, ['pending', 'in_process', 'rejected', 'cancelled'], true);
+}
