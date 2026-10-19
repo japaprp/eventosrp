@@ -102,6 +102,18 @@ function login(after) {
   $('#reset').onclick=()=>passwordReset($('#email').value.trim());
 }
 function validPhone(value){return /^(?:55)?[1-9][0-9][0-9]{8,9}$/.test(value.replace(/\D/g,''))}
+function reservationStatusLabel(reservation){
+  if(reservation.payment_attention==='refund_required')return reservation.status==='approved'?'Confirmada — há pagamento a reembolsar':'Pagamento requer atendimento para reembolso';
+  if(reservation.payment_attention==='chargeback')return reservation.status==='approved'?'Confirmada — pagamento contestado; revisão necessária':'Pagamento contestado — revisão necessária';
+  if(reservation.payment_attention==='review_required')return reservation.status==='approved'?'Confirmada — pagamento em revisão':'Pagamento em revisão';
+  if(reservation.status==='approved')return 'Confirmada';
+  if(reservation.status==='pending')return ['in_process','pending','authorized','in_mediation'].includes(reservation.payment_status)?'Pagamento em processamento':'Aguardando pagamento';
+  if(reservation.status==='expired')return 'Expirada';
+  if(reservation.status==='failed')return 'Não concluída';
+  if(reservation.status==='cancelled')return 'Cancelada';
+  if(reservation.status==='creating')return 'Preparando pagamento';
+  return 'Em análise';
+}
 
 async function api(path,options={}){const token=await user.getIdToken();const r=await fetch(`api.php?action=${path}`,{...options,headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`,...(options.headers||{})}});if(!r.ok)throw new Error(r.statusText);return r.json()}
 function reservation(s) {
@@ -162,7 +174,7 @@ function reservation(s) {
   };
 }
 
-async function account(page){if(!user){login(()=>account(page));return}modal(`<h2>${page==='reservas'?'Minhas reservas':'Meu painel'}</h2><p id="account-email"></p><div id="reservation-list">Carregando...</div><button class="login" id="space-mgmt">Meus espaços ↗</button><button class="login" id="account-logout">Sair</button>`);$('#account-email').textContent=user.email;const [owned,guest]=await Promise.allSettled([api('my-spaces'),api('reservations')]);if(!$('#reservation-list'))return;if(guest.status==='rejected'||!guest.value.length){$('#reservation-list').innerHTML='<p>Você ainda não tem reservas. <a href="javascript:location.reload()">Voltar ao catálogo</a>'}else{$('#reservation-list').innerHTML=guest.value.map(r=>`<div class="reservation-item"><p><strong>${escapeHtml(r.name)}</strong> · ${escapeHtml(r.city)} · ${formatBookingDate(r.check_in)}</p><p class="muted">${r.status==='confirmed'?'Confirmada':r.status==='pending'?'Aguardando confirmação':'Cancelada'}</p><button class="detail-button" onclick="chat(${r.id})">Ver conversa</button></div>`).join('')}$('#space-mgmt').onclick=()=>spaceManager();$('#account-logout').onclick=async()=>{await sdk.signOut(auth);setAuthenticatedUser(null);location.reload()}}
+async function account(page){if(!user){login(()=>account(page));return}modal(`<h2>${page==='reservas'?'Minhas reservas':'Meu painel'}</h2><p id="account-email"></p><div id="reservation-list">Carregando...</div><button class="login" id="space-mgmt">Meus espaços ↗</button><button class="login" id="account-logout">Sair</button>`);$('#account-email').textContent=user.email;const [owned,guest]=await Promise.allSettled([api('my-spaces'),api('reservations')]);if(!$('#reservation-list'))return;if(guest.status==='rejected'||!guest.value.length){$('#reservation-list').innerHTML='<p>Você ainda não tem reservas. <a href="javascript:location.reload()">Voltar ao catálogo</a>'}else{$('#reservation-list').innerHTML=guest.value.map(r=>`<div class="reservation-item"><p><strong>${escapeHtml(r.name)}</strong> · ${escapeHtml(r.city)} · ${formatBookingDate(r.check_in)}</p><p class="muted">${reservationStatusLabel(r)}</p><button class="detail-button" onclick="chat(${r.id})">Ver conversa</button></div>`).join('')}$('#space-mgmt').onclick=()=>spaceManager();$('#account-logout').onclick=async()=>{await sdk.signOut(auth);setAuthenticatedUser(null);location.reload()}}
 function chat(id){modal('<h2>Conversa da reserva</h2><div class="chat-messages" id="messages" aria-live="polite"></div><form class="form" id="chat-form"><label>Sua mensagem<input id="chat-text" maxlength="2000" placeholder="Envie sua mensagem..." required></label><div class="form-error" role="alert"></div><button class="primary" type="submit">Enviar</button></form>');const messagesDiv=$('#messages');function refresh(){api('chat',{method:'GET',body:JSON.stringify({booking_id:id})}).then(msgs=>{messagesDiv.innerHTML=msgs.map(m=>`<div class="${m.user_id===user.uid?'my-message':'their-message'}"><p>${escapeHtml(m.text)}</p><small>${new Date(m.created_at).toLocaleString('pt-BR')}</small></div>`).join('');messagesDiv.scrollTop=messagesDiv.scrollHeight}).catch(()=>messagesDiv.innerHTML='<p class="muted">Erro ao carregar mensagens.</p>')}refresh();unsubscribeChat=setInterval(refresh,3000);$('#chat-form').onsubmit=async e=>{e.preventDefault();try{await api('chat',{method:'POST',body:JSON.stringify({booking_id:id,text:$('#chat-text').value.trim()})});$('#chat-text').value='';refresh()}catch(e){$('.form-error').textContent=e.message}}}
 const legal={terms:['Termos de uso','Esta plataforma apresenta espaços e permite solicitar locações. O usuário deve fornecer informações corretas, respeitar a capacidade e as regras do local, e aceitar os termos de serviço. Pagamentos são processados via Mercado Pago. Cancelamentos devem ser feitos conforme as regras do host.'],privacy:['Política de privacidade','Seus dados de perfil, reservas e comunicações são armazenados para gerenciar sua conta e reservas. Não compartilhamos dados com terceiros, exceto para pagamento (Mercado Pago) e autenticação (Firebase). Você pode solicitar exclusão a qualquer momento.']};
 $('#login-button').onclick=()=>user?account('reservas'):login();
@@ -204,7 +216,7 @@ async function spaceManager(){
   if(received.status==='rejected')$('#host-reservations').textContent=received.reason.message;
   else{
     const box=$('#host-reservations');box.textContent=received.value.length?'':'Nenhuma reserva recebida.';
-    for(const r of received.value){const item=document.createElement('div');item.className='reservation-item';const text=document.createElement('p');text.textContent=`${r.name} · ${r.contact_name} · ${formatBookingDate(r.check_in)}`;item.appendChild(text);const button=document.createElement('button');button.className='detail-button';button.textContent='Ver conversa';button.onclick=()=>chat(r.id);item.appendChild(button);box.appendChild(item)}
+    for(const r of received.value){const item=document.createElement('div');item.className='reservation-item';const text=document.createElement('p');text.textContent=`${r.name} · ${r.contact_name} · ${formatBookingDate(r.check_in)} · ${reservationStatusLabel(r)}`;item.appendChild(text);const button=document.createElement('button');button.className='detail-button';button.textContent='Ver conversa';button.onclick=()=>chat(r.id);item.appendChild(button);box.appendChild(item)}
   }
 }
 

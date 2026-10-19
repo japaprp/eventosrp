@@ -22,10 +22,14 @@ jobs:
           php-version: '8.2'
           extensions: mbstring, pdo_mysql
           coverage: none
+      - name: Lint API and payment lifecycle
+        run: php -l public/api.php && php -l src/payment_lifecycle.php
       - name: Test booking rules
         run: php tests/booking.php
       - name: Test space validation
         run: php tests/spaces.php
+      - name: Test payment lifecycle
+        run: php tests/payment_lifecycle.php
 
   frontend-tests:
     name: Frontend regression tests
