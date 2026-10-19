@@ -53,7 +53,7 @@ assertOAuthSame($stateVerifier,$consumed['code_verifier'],'State deve recuperar 
 assertOAuthInvalid(fn() => marketplaceConsumeOAuthState($pdo,$state),'State consumido não pode ser reutilizado');
 assertOAuthInvalid(fn() => marketplaceConsumeOAuthState($pdo,str_repeat('0',64)),'State desconhecido deve falhar');
 $expiredState = bin2hex(random_bytes(32));
-$q->execute([hash('sha256',$expiredState),43,marketplaceEncryptSecret($stateVerifier,$master),(new DateTimeImmutable('-1 minute'))->format('Y-m-d H:i:s')]);
+$q->execute([hash('sha256',$expiredState),43,marketplaceEncryptSecret($stateVerifier,$master),(new DateTimeImmutable('-1 minute', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s')]);
 assertOAuthInvalid(fn() => marketplaceConsumeOAuthState($pdo,$expiredState),'State expirado deve falhar');
 
 echo "Criptografia, PKCE, expiração e replay de OAuth passaram.\n";
