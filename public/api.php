@@ -7,6 +7,8 @@ require dirname(__DIR__).'/src/bootstrap.php';
 require dirname(__DIR__).'/src/booking.php';
 require dirname(__DIR__).'/src/spaces.php';
 require dirname(__DIR__).'/src/payment_lifecycle.php';
+require dirname(__DIR__).'/src/marketplace_finance.php';
+require dirname(__DIR__).'/src/marketplace_oauth.php';
 date_default_timezone_set('America/Sao_Paulo');
 
 function paymentLifecycleRecordEvent(PDO $pdo, string $reservationId, array $payment): void {
@@ -129,14 +131,36 @@ try {
   try{paymentLifecycleApplyVerifiedPayment($pdo,$reference,$payment);}catch(InvalidArgumentException $e){respond(['error'=>'Pagamento inconsistente.'],400);}
   respond(['received'=>true]);
  }
- if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations'],true))respond(['error'=>'Rota não encontrada.'],404);
- if((in_array($action,['my-spaces','host-reservations'],true)&&$method!=='GET')||($action==='save-space'&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
+ if($action==='mp-oauth-callback') {
+  if($method!=='GET')respond(['error'=>'Método não permitido.'],405);
+  $appUrl=rtrim(env('APP_URL'),'/');
+  if(!str_starts_with($appUrl,'https://'))respond(['error'=>'Callback OAuth exige APP_URL com HTTPS.'],503);
+  try {
+   if(isset($_GET['error'])) {
+    if(isset($_GET['state']))marketplaceConsumeOAuthState(database(),(string)$_GET['state']);
+    header('Location: '.$appUrl.'/?mp_connect=denied',true,302);exit;
+   }
+   marketplaceOAuthComplete(database(),(string)($_GET['code']??''),(string)($_GET['state']??''));
+   header('Location: '.$appUrl.'/?mp_connect=success',true,302);exit;
+  } catch(Throwable $e) {
+   error_log('Encontro marketplace OAuth callback: '.get_class($e));
+   header('Location: '.$appUrl.'/?mp_connect=error',true,302);exit;
+  }
+ }
+ if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations','mp-connect','mp-account'],true))respond(['error'=>'Rota não encontrada.'],404);
+ if((in_array($action,['my-spaces','host-reservations','mp-connect','mp-account'],true)&&$method!=='GET')||($action==='save-space'&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
  if(($action==='reserve'&&$method!=='POST')||($action==='reservations'&&$method!=='GET')||($action==='profile'&&!in_array($method,['GET','POST'],true)))respond(['error'=>'Método não permitido.'],405);
  $header=$_SERVER['HTTP_AUTHORIZATION']??'';if(!preg_match('/^Bearer (.+)$/',$header,$match))respond(['error'=>'Entre na sua conta.'],401);
  try{$token=firebase()->createAuth()->verifyIdToken($match[1],true);}catch(Throwable $e){respond(['error'=>'Sessão inválida. Entre novamente.'],401);}
  $uid=$token->claims()->get('sub');$email=$token->claims()->get('email','');$pdo=database();
  $q=$pdo->prepare('INSERT INTO users(firebase_uid,email) VALUES (?,?) ON DUPLICATE KEY UPDATE email=VALUES(email)');$q->execute([$uid,$email]);
  $q=$pdo->prepare('SELECT id FROM users WHERE firebase_uid=?');$q->execute([$uid]);$userId=$q->fetchColumn();
+ if($action==='mp-account')respond(marketplaceSellerAccountSummary($pdo,(int)$userId));
+ if($action==='mp-connect'){
+  try{respond(['authorization_url'=>marketplaceOAuthStart($pdo,(int)$userId)]);}
+  catch(DomainException $e){respond(['error'=>$e->getMessage()],403);}
+  catch(Throwable $e){error_log('Encontro marketplace OAuth start: '.get_class($e));respond(['error'=>'Conexão do Mercado Pago ainda não configurada.'],503);}
+ }
  if($action==='my-spaces'){$q=$pdo->prepare('SELECT * FROM spaces WHERE owner_id=? ORDER BY id DESC');$q->execute([$userId]);respond(array_map('publicSpace',$q->fetchAll(PDO::FETCH_ASSOC)));}
  if($action==='host-reservations'){$q=$pdo->prepare('SELECT r.id,r.check_in,r.check_out,r.plan,r.billable_days,r.total,r.status,r.payment_status,r.payment_attention,r.contact_name,r.guests,s.name FROM reservations r JOIN spaces s ON s.id=r.space_id WHERE s.owner_id=? ORDER BY r.created_at DESC');$q->execute([$userId]);respond($q->fetchAll(PDO::FETCH_ASSOC));}
  if($action==='save-space'){
