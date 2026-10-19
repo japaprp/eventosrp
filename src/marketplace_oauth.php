@@ -75,7 +75,8 @@ function marketplaceConsumeOAuthState(PDO $pdo, string $state): array {
     $now = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
     $pdo->beginTransaction();
     try {
-        $q = $pdo->prepare('SELECT state_hash,owner_id,code_verifier_encrypted,expires_at,used_at FROM marketplace_oauth_states WHERE state_hash=? FOR UPDATE');
+        $lockSuffix = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : '';
+        $q = $pdo->prepare('SELECT state_hash,owner_id,code_verifier_encrypted,expires_at,used_at FROM marketplace_oauth_states WHERE state_hash=?'.$lockSuffix);
         $q->execute([hash('sha256',$state)]);
         $row = $q->fetch(PDO::FETCH_ASSOC);
         if (!$row || $row['used_at'] !== null || $row['expires_at'] <= $now || empty($row['code_verifier_encrypted'])) {
@@ -174,7 +175,8 @@ function marketplaceSellerAccessToken(PDO $pdo, int $ownerId): string {
     $config = marketplaceOAuthConfiguration();
     $pdo->beginTransaction();
     try {
-        $q = $pdo->prepare('SELECT * FROM marketplace_seller_accounts WHERE owner_id=? FOR UPDATE');
+        $lockSuffix = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : '';
+        $q = $pdo->prepare('SELECT * FROM marketplace_seller_accounts WHERE owner_id=?'.$lockSuffix);
         $q->execute([$ownerId]);
         $row = $q->fetch(PDO::FETCH_ASSOC);
         if (!$row || $row['status'] !== 'connected' || empty($row['refresh_token_encrypted'])) {
