@@ -24,6 +24,9 @@ vm.runInContext('login()',context);assert.match(element('#modal-content').innerH
 element('#signup').onclick();assert.equal(element('#signup-name').required,true);assert.equal(element('#signup-name').disabled,false);assert.equal(element('#accept-account').required,true);assert.equal(element('#password').autocomplete,'new-password');
 element('#signup').onclick();assert.equal(element('#signup-name').disabled,true);assert.equal(element('#password').autocomplete,'current-password');
 assert.equal(vm.runInContext("validPhone('(16) 99999-9999')",context),true);assert.equal(vm.runInContext("validPhone('123')",context),false);
+assert.equal(vm.runInContext("reservationStatusLabel({status:'approved',payment_attention:'none'})",context),'Confirmada');
+assert.equal(vm.runInContext("reservationStatusLabel({status:'expired',payment_attention:'none'})",context),'Expirada');
+assert.match(vm.runInContext("reservationStatusLabel({status:'failed',payment_attention:'refund_required'})",context),/reembolso/);
 vm.runInContext("profile={name:'Cliente de teste',phone:'(16) 99999-9999'};reservation(spaces[6])",context);
 assert.equal(element('#contact-name').value,'Cliente de teste');assert.equal(element('#phone').value,'(16) 99999-9999');
 assert.match(element('#modal-content').innerHTML,/id="accept-reservation-terms"/);assert.match(element('#modal-content').innerHTML,/Esta plataforma apresenta espaços e permite solicitar locações/);assert.match(element('#modal-content').innerHTML,/Regras do espaço e cancelamento/);
