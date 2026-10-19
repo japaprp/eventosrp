@@ -48,7 +48,7 @@ if ($keyA === $keyC) throw new RuntimeException('Tipos de evento distintos preci
 
 $pdo = new PDO('sqlite::memory:');
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$pdo->exec('CREATE TABLE marketplace_commission_ledger (
+$pdo->exec('CREATE TABLE users (id INTEGER PRIMARY KEY); CREATE TABLE spaces (id INTEGER PRIMARY KEY, owner_id INTEGER); CREATE TABLE reservations (id TEXT PRIMARY KEY, space_id INTEGER); INSERT INTO users(id) VALUES (7); INSERT INTO spaces(id,owner_id) VALUES (1,7); INSERT INTO reservations(id,space_id) VALUES (\'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\',1); CREATE TABLE marketplace_commission_ledger (
  id INTEGER PRIMARY KEY AUTOINCREMENT, reservation_id TEXT, owner_id INTEGER, provider_payment_id TEXT,
  provider_event_id TEXT, entry_type TEXT, currency TEXT, gross_amount TEXT, provider_fee_amount TEXT,
  commission_rate_bps INTEGER, commission_amount TEXT, host_net_estimate TEXT, idempotency_key TEXT UNIQUE,
