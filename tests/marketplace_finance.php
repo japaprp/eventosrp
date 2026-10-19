@@ -62,6 +62,7 @@ $pdo->exec('CREATE TABLE users (id INTEGER PRIMARY KEY); CREATE TABLE spaces (id
  commission_rate_bps INTEGER, commission_amount TEXT, host_net_estimate TEXT, idempotency_key TEXT UNIQUE,
  reverses_entry_id INTEGER, metadata TEXT
 )');
+$pdo->exec("INSERT INTO reservations(id,space_id) VALUES ('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',1)");
 $entry = [
  'reservation_id'=>str_repeat('a',32),'owner_id'=>7,'provider_payment_id'=>'pay-123',
  'provider_event_id'=>'approved-event','entry_type'=>'commission_accrual','gross_amount'=>'1000.00',
@@ -84,5 +85,8 @@ $reversal['host_net_estimate']='-887.50';
 $reversal['reverses_entry_id']=$id1;
 $id3 = marketplaceRecordLedgerEntry($pdo,$reversal);
 if ($id3 === $id1) throw new RuntimeException('Estorno precisa ser um novo evento append-only.');
+expectInvalid(fn() => marketplaceRecordLedgerEntry($pdo,array_merge($reversal,['provider_event_id'=>'refund-no-original','reverses_entry_id'=>null])),'Estorno não pode existir sem lançamento original');
+expectInvalid(fn() => marketplaceRecordLedgerEntry($pdo,array_merge($reversal,['provider_event_id'=>'refund-positive-gross','gross_amount'=>'1000.00'])),'Estorno não pode registrar valor bruto positivo');
+expectInvalid(fn() => marketplaceRecordLedgerEntry($pdo,array_merge($reversal,['reservation_id'=>str_repeat('b',32),'provider_event_id'=>'refund-wrong-reservation'])),'Estorno não pode referenciar lançamento de outra reserva');
 
-echo "Cálculos, idempotência e reversões do ledger passaram.\n";
+echo "Cálculos, idempotência e validações de reversão do ledger passaram.\n";
