@@ -136,7 +136,15 @@ function reservation(s) {
   function suggestOut(){
     if($('#check-in').value){
       const value=$('#check-in').value.slice(0,10)+'T'+s.checkInTime;$('#check-in').value=value;
-      try{const start=parseBookingDate(value),date=new Date(start.getTime());date.setUTCDate(date.getUTCDate()+Math.max(s.minimumDays,$('#plan').value==='weekend'?2:1));let end=localDateTime(date).slice(0,16);if(!changedOut)$('#check-out').value=end}catch{}
+      try{
+        const start=parseBookingDate(value),plan=$('#plan').value;
+        const date=new Date(start.getTime());date.setUTCDate(date.getUTCDate()+Math.max(s.minimumDays,plan==='weekend'?2:1));
+        let end=localDateTime(date).slice(0,10)+'T'+s.checkOutTime,parsedEnd=parseBookingDate(end);
+        while(parsedEnd<=start||(plan==='weekend'&&parsedEnd-start<172800000)||Math.ceil((parsedEnd-start)/86400000)<s.minimumDays){
+          date.setUTCDate(date.getUTCDate()+1);end=localDateTime(date).slice(0,10)+'T'+s.checkOutTime;parsedEnd=parseBookingDate(end);
+        }
+        if(!changedOut)$('#check-out').value=end;
+      }catch{}
     }updateQuote();
   }
   $('#check-in').oninput=suggestOut;$('#plan').onchange=suggestOut;$('#check-out').oninput=()=>{changedOut=true;if($('#check-out').value)$('#check-out').value=$('#check-out').value.slice(0,10)+'T'+s.checkOutTime;updateQuote()};
