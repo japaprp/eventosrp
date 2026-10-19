@@ -101,8 +101,8 @@ function marketplaceOAuthPost(array $payload): array {
         CURLOPT_TIMEOUT=>20,
         CURLOPT_CONNECTTIMEOUT=>8,
         CURLOPT_POST=>true,
-        CURLOPT_POSTFIELDS=>http_build_query($payload, '', '&', PHP_QUERY_RFC3986),
-        CURLOPT_HTTPHEADER=>['Accept: application/json','Content-Type: application/x-www-form-urlencoded'],
+        CURLOPT_POSTFIELDS=>json_encode($payload, JSON_THROW_ON_ERROR),
+        CURLOPT_HTTPHEADER=>['Accept: application/json','Content-Type: application/json'],
     ]);
     $response = curl_exec($curl);
     $status = curl_getinfo($curl, CURLINFO_HTTP_CODE);
