@@ -114,7 +114,7 @@ function reservation(s) {
       <label>Nome do responsável<input id="contact-name" autocomplete="name" minlength="2" maxlength="120" required></label>
       <div class="form-row"><label>Número de convidados<input type="number" id="guests" min="1" max="${s.capacity}" required></label><label>Celular com DDD<input type="tel" id="phone" autocomplete="tel" maxlength="25" placeholder="(16) 99999-9999" required></label></div>
       <label>Conte sobre seu evento<textarea id="message" maxlength="2000" required></textarea></label>
-      <label><span><input type="checkbox" required style="width:auto"> Li os termos de uso e desejo solicitar a reserva.</span></label>
+      <div class="notice"><strong>Regras do espaço e cancelamento</strong><p>${escapeHtml(s.rules||'Consulte o anfitrião para confirmar as regras e as condições de cancelamento antes de pagar.')}</p></div><label><span><input type="checkbox" id="accept-reservation-terms" required style="width:auto"> Li os termos de uso da plataforma e as regras e condições de cancelamento deste espaço. Entendo que a reserva depende da confirmação do pagamento.</span></label>
       <p class="notice">Total estimado para a locação. O servidor confirma preço e disponibilidade antes do pagamento no Mercado Pago. Serviços adicionais devem ser acordados previamente.</p>
       <div class="form-error" role="alert"></div><button class="primary" type="submit">Continuar para pagamento ↗</button>
     </form>`);
@@ -148,7 +148,7 @@ function reservation(s) {
       if(!validPhone($('#phone').value))throw new Error('Informe um celular válido com DDD.');
       if($('#contact-name').value.trim().length<2)throw new Error('Informe o nome do responsável.');
       button.disabled=true;
-      const data=await api('reserve',{method:'POST',body:JSON.stringify({space_id:s.id,check_in:$('#check-in').value,check_out:$('#check-out').value,plan:$('#plan').value,contact_name:$('#contact-name').value.trim(),guests:Number($('#guests').value),phone:$('#phone').value.trim(),message:$('#message').value.trim()})});
+      const data=await api('reserve',{method:'POST',body:JSON.stringify({space_id:s.id,check_in:$('#check-in').value,check_out:$('#check-out').value,plan:$('#plan').value,contact_name:$('#contact-name').value.trim(),guests:Number($('#guests').value),phone:$('#phone').value.trim(),message:$('#message').value.trim(),terms_accepted:$('#accept-reservation-terms').checked})});
       const target=new URL(data.checkout_url);if(target.protocol!=='https:'||!/(^|\.)mercadopago\.(com|com\.br)$/.test(target.hostname))throw new Error('Endereço de pagamento inválido.');location.href=data.checkout_url;
     }catch(err){$('.form-error').textContent=err.message;button.disabled=false}
   };
