@@ -64,7 +64,8 @@ function paymentLifecycleCanReleaseHold(
 /** Preserve terminal provider states against delayed or out-of-order snapshots. */
 function paymentLifecycleIsStaleStatus(?string $existingStatus, string $incomingStatus): bool {
     if ($existingStatus === null || $existingStatus === $incomingStatus) return false;
-    if (in_array($existingStatus, ['refunded', 'charged_back'], true)) return true;
+    if ($existingStatus === 'charged_back') return true;
+    if ($existingStatus === 'refunded') return $incomingStatus !== 'charged_back';
     return $existingStatus === 'approved'
         && in_array($incomingStatus, ['pending', 'in_process', 'rejected', 'cancelled'], true);
 }
