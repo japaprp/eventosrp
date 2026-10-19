@@ -11,7 +11,7 @@ date_default_timezone_set('America/Sao_Paulo');
 
 function paymentLifecycleRecordEvent(PDO $pdo, string $reservationId, array $payment): void {
  $paymentId=(string)($payment['id']??'');$status=(string)($payment['status']??'');
- if($paymentId===''||$status==='')throw new RuntimeException('Evento de pagamento incompleto.');
+ if($paymentId===''||$status==='')throw new InvalidArgumentException('Evento de pagamento incompleto.');
  $now=(new DateTimeImmutable('now',new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
  $detail=isset($payment['status_detail'])?substr((string)$payment['status_detail'],0,100):null;
  $q=$pdo->prepare('INSERT INTO reservation_payment_events(reservation_id,payment_id,provider_status,status_detail,amount,currency,event_count,first_seen_at,last_seen_at) VALUES (?,?,?,?,?,?,1,?,?) ON DUPLICATE KEY UPDATE provider_status=VALUES(provider_status),status_detail=VALUES(status_detail),amount=VALUES(amount),currency=VALUES(currency),event_count=event_count+1,last_seen_at=VALUES(last_seen_at)');
@@ -19,7 +19,7 @@ function paymentLifecycleRecordEvent(PDO $pdo, string $reservationId, array $pay
 }
 function paymentLifecycleApplyVerifiedPayment(PDO $pdo, string $reservationId, array $payment): void {
  $paymentId=(string)($payment['id']??'');$status=(string)($payment['status']??'');
- if($paymentId===''||$status===''||(string)($payment['external_reference']??'')!==$reservationId)throw new RuntimeException('Referência do pagamento inconsistente.');
+ if($paymentId===''||$status===''||(string)($payment['external_reference']??'')!==$reservationId)throw new InvalidArgumentException('Referência do pagamento inconsistente.');
  $initial=$pdo->prepare('SELECT space_id FROM reservations WHERE id=?');$initial->execute([$reservationId]);$spaceId=$initial->fetchColumn();
  if(!$spaceId)return;
  $pdo->beginTransaction();
@@ -27,7 +27,7 @@ function paymentLifecycleApplyVerifiedPayment(PDO $pdo, string $reservationId, a
   $lock=$pdo->prepare('SELECT id FROM spaces WHERE id=? FOR UPDATE');$lock->execute([$spaceId]);
   $q=$pdo->prepare('SELECT * FROM reservations WHERE id=? FOR UPDATE');$q->execute([$reservationId]);$reservation=$q->fetch(PDO::FETCH_ASSOC);
   if(!$reservation){$pdo->commit();return;}
-  if(($payment['currency_id']??'')!=='BRL'||abs((float)($payment['transaction_amount']??-1)-(float)$reservation['total'])>0.001)throw new RuntimeException('Valor ou moeda do pagamento inconsistente.');
+  if(($payment['currency_id']??'')!=='BRL'||abs((float)($payment['transaction_amount']??-1)-(float)$reservation['total'])>0.001)throw new InvalidArgumentException('Valor ou moeda do pagamento inconsistente.');
   paymentLifecycleRecordEvent($pdo,$reservationId,$payment);
   $existingId=isset($reservation['payment_id'])?(string)$reservation['payment_id']:null;
   $conflict=false;
@@ -126,7 +126,7 @@ try {
   if((string)($payment['id']??'')!==$id)respond(['error'=>'Identificador do pagamento inconsistente.'],400);
   $pdo=database();$q=$pdo->prepare('SELECT id FROM reservations WHERE id=?');$q->execute([$reference]);
   if(!$q->fetchColumn())respond(['received'=>true]);
-  try{paymentLifecycleApplyVerifiedPayment($pdo,$reference,$payment);}catch(RuntimeException $e){respond(['error'=>'Pagamento inconsistente.'],400);}
+  try{paymentLifecycleApplyVerifiedPayment($pdo,$reference,$payment);}catch(InvalidArgumentException $e){respond(['error'=>'Pagamento inconsistente.'],400);}
   respond(['received'=>true]);
  }
  if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations'],true))respond(['error'=>'Rota não encontrada.'],404);
