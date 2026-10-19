@@ -75,4 +75,20 @@ jobs:
             pkill -f '[p]hp -S 127.0.0.1:8088' 2>/dev/null || true
           }
           trap cleanup EXIT
-          php tests/http/concurrent_booking.php
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --silent --output /dev/null --max-time 1 "$HTTP_TEST_BASE_URL/api.php?action=spaces"; then
+              ready=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/eventosrp-http-test-server.log
+            echo "PHP HTTP test server did not start." >&2
+            exit 1
+          fi
+          if ! php tests/http/concurrent_booking.php; then
+            cat /tmp/eventosrp-http-test-server.log
+            exit 1
+          fi
