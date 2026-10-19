@@ -141,7 +141,9 @@ try {
   $q->execute([$now]);
   $due=$q->fetchAll(PDO::FETCH_ASSOC);
   foreach($due as $reservation)paymentLifecycleReconcileExpiredHold($pdo,$reservation);
-  respond(['received'=>true,'attempted'=>count($due)]);
+  $remaining=$pdo->prepare("SELECT COUNT(*) FROM reservations WHERE status='pending' AND hold_expires_at IS NOT NULL AND hold_expires_at<=?");
+  $remaining->execute([$now]);
+  respond(['received'=>true,'attempted'=>count($due),'remaining_due'=>(int)$remaining->fetchColumn()]);
  }
  if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations'],true))respond(['error'=>'Rota não encontrada.'],404);
  if((in_array($action,['my-spaces','host-reservations'],true)&&$method!=='GET')||($action==='save-space'&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
