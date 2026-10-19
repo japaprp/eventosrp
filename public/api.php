@@ -35,11 +35,11 @@ function paymentLifecycleApplyVerifiedPayment(PDO $pdo, string $reservationId, a
    $q=$pdo->prepare("SELECT id FROM reservations WHERE space_id=? AND id<>? AND check_in < ? AND blocked_until > ? AND status IN ('creating','pending','approved') LIMIT 1");
    $q->execute([$reservation['space_id'],$reservationId,$reservation['blocked_until'],$reservation['check_in']]);$conflict=(bool)$q->fetchColumn();
   }
-  $decision=paymentLifecycleDecision((string)$reservation['status'],$status,$existingId,$paymentId,$conflict);
+  $decision=($status==='approved'&&$reservation['status']==='pending'&&$reservation['payment_attention']!=='none')?'refund_required':paymentLifecycleDecision((string)$reservation['status'],$status,$existingId,$paymentId,$conflict);
   $detail=isset($payment['status_detail'])?substr((string)$payment['status_detail'],0,100):null;
   $now=(new DateTimeImmutable('now',new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
   if($decision==='approve'){
-   $q=$pdo->prepare("UPDATE reservations SET status='approved',payment_id=?,payment_status=?,payment_status_detail=?,payment_updated_at=?,payment_attention='none' WHERE id=? AND status='pending'");
+   $q=$pdo->prepare("UPDATE reservations SET status='approved',payment_id=?,payment_status=?,payment_status_detail=?,payment_updated_at=? WHERE id=? AND status='pending'");
    $q->execute([$paymentId,$status,$detail,$now,$reservationId]);
   }elseif($decision==='idempotent_approval'){
    $q=$pdo->prepare("UPDATE reservations SET payment_status='approved',payment_status_detail=?,payment_updated_at=? WHERE id=? AND status='approved' AND payment_id=?");
@@ -48,6 +48,9 @@ function paymentLifecycleApplyVerifiedPayment(PDO $pdo, string $reservationId, a
    if($reservation['status']==='pending'&&$status==='approved'&&$conflict){
     $q=$pdo->prepare("UPDATE reservations SET status='failed',payment_status='approved',payment_status_detail=?,payment_updated_at=?,payment_attention='refund_required' WHERE id=? AND status='pending'");
     $q->execute([$detail,$now,$reservationId]);
+   }elseif(in_array($reservation['status'],['expired','failed','cancelled','creating'],true)){
+    $q=$pdo->prepare("UPDATE reservations SET payment_status=?,payment_status_detail=?,payment_updated_at=?,payment_attention='refund_required' WHERE id=?");
+    $q->execute([$status,$detail,$now,$reservationId]);
    }else{
     $q=$pdo->prepare("UPDATE reservations SET payment_attention='refund_required',payment_updated_at=? WHERE id=?");
     $q->execute([$now,$reservationId]);
@@ -103,8 +106,9 @@ function paymentLifecycleReconcileExpiredHold(PDO $pdo, array $reservation): voi
  }catch(Throwable $e){error_log('Encontro payment reconciliation: '.get_class($e));}
 }
 function paymentLifecycleReconcileOverlappingHolds(PDO $pdo, int $spaceId, string $checkIn, string $blockedUntil): void {
- $q=$pdo->prepare("SELECT * FROM reservations WHERE space_id=? AND check_in < ? AND blocked_until > ? AND status='pending' AND hold_expires_at IS NOT NULL AND hold_expires_at<=NOW() ORDER BY created_at ASC LIMIT 10");
- $q->execute([$spaceId,$blockedUntil,$checkIn]);
+ $now=(new DateTimeImmutable('now',new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
+ $q=$pdo->prepare("SELECT * FROM reservations WHERE space_id=? AND check_in < ? AND blocked_until > ? AND status='pending' AND hold_expires_at IS NOT NULL AND hold_expires_at<=? ORDER BY created_at ASC LIMIT 2");
+ $q->execute([$spaceId,$blockedUntil,$checkIn,$now]);
  foreach($q->fetchAll(PDO::FETCH_ASSOC) as $reservation)paymentLifecycleReconcileExpiredHold($pdo,$reservation);
 }
 
