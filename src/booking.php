@@ -26,3 +26,33 @@ function bookingQuote(mixed $checkIn, mixed $checkOut, mixed $plan, string $dail
 function bookingOverlaps(string $startA, string $endA, string $startB, string $endB): bool {
     return $startA < $endB && $endA > $startB;
 }
+
+
+const RESERVATION_TERMS_VERSION = 'reserva-v1-2026-10';
+const RESERVATION_PLATFORM_TERMS = 'Esta plataforma apresenta espaços e permite solicitar locações. Você deve fornecer informações corretas, respeitar a capacidade e as regras do local. O pagamento é processado pelo Mercado Pago. Cancelamentos seguem as regras do anfitrião.';
+function reservationAgreementSnapshot(array $space, array $quote, array $reservation, string $version): string {
+    return json_encode([
+        'version' => $version,
+        'platform_terms' => RESERVATION_PLATFORM_TERMS,
+        'space' => [
+            'id' => (int) $space['id'],
+            'name' => (string) $space['name'],
+            'address' => (string) ($space['address'] ?? ''),
+            'city' => (string) $space['city'],
+            'rules_and_cancellation' => trim((string) ($space['rules'] ?? '')) !== '' ? (string) $space['rules'] : 'Consulte o anfitrião para confirmar as regras e as condições de cancelamento antes de pagar.',
+            'check_in_time' => substr((string) $space['check_in_time'], 0, 5),
+            'check_out_time' => substr((string) $space['check_out_time'], 0, 5),
+        ],
+        'reservation' => [
+            'check_in' => $quote['check_in'],
+            'check_out' => $quote['check_out'],
+            'plan' => (string) $reservation['plan'],
+            'billable_days' => (int) $quote['days'],
+            'total_brl' => $quote['total'],
+            'contact_name' => trim((string) $reservation['contact_name']),
+            'phone' => trim((string) $reservation['phone']),
+            'guests' => (int) $reservation['guests'],
+            'message' => trim((string) $reservation['message']),
+        ],
+    ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}

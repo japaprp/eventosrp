@@ -114,7 +114,7 @@ function reservation(s) {
       <label>Nome do responsável<input id="contact-name" autocomplete="name" minlength="2" maxlength="120" required></label>
       <div class="form-row"><label>Número de convidados<input type="number" id="guests" min="1" max="${s.capacity}" required></label><label>Celular com DDD<input type="tel" id="phone" autocomplete="tel" maxlength="25" placeholder="(16) 99999-9999" required></label></div>
       <label>Conte sobre seu evento<textarea id="message" maxlength="2000" required></textarea></label>
-      <label><span><input type="checkbox" required style="width:auto"> Li os termos de uso e desejo solicitar a reserva.</span></label>
+      <div class="notice"><strong>Termos da plataforma</strong><p>Esta plataforma apresenta espaços e permite solicitar locações. Você deve fornecer informações corretas, respeitar a capacidade e as regras do local. O pagamento é processado pelo Mercado Pago. Cancelamentos seguem as regras do anfitrião.</p><strong>Regras do espaço e cancelamento</strong><p>${escapeHtml(s.rules||'Consulte o anfitrião para confirmar as regras e as condições de cancelamento antes de pagar.')}</p></div><label><span><input type="checkbox" id="accept-reservation-terms" required style="width:auto"> Li e aceito os termos da plataforma e as regras e condições de cancelamento deste espaço. Entendo que a reserva depende da confirmação do pagamento.</span></label>
       <p class="notice">Total estimado para a locação. O servidor confirma preço e disponibilidade antes do pagamento no Mercado Pago. Serviços adicionais devem ser acordados previamente.</p>
       <div class="form-error" role="alert"></div><button class="primary" type="submit">Continuar para pagamento ↗</button>
     </form>`);
@@ -136,7 +136,15 @@ function reservation(s) {
   function suggestOut(){
     if($('#check-in').value){
       const value=$('#check-in').value.slice(0,10)+'T'+s.checkInTime;$('#check-in').value=value;
-      try{const start=parseBookingDate(value),date=new Date(start.getTime());date.setUTCDate(date.getUTCDate()+Math.max(s.minimumDays,$('#plan').value==='weekend'?2:1));let end=localDateTime(date).slice(0,16);if(!changedOut)$('#check-out').value=end}catch{}
+      try{
+        const start=parseBookingDate(value),plan=$('#plan').value;
+        const date=new Date(start.getTime());date.setUTCDate(date.getUTCDate()+Math.max(s.minimumDays,plan==='weekend'?2:1));
+        let end=localDateTime(date).slice(0,10)+'T'+s.checkOutTime,parsedEnd=parseBookingDate(end);
+        while(parsedEnd<=start||(plan==='weekend'&&parsedEnd-start<172800000)||Math.ceil((parsedEnd-start)/86400000)<s.minimumDays){
+          date.setUTCDate(date.getUTCDate()+1);end=localDateTime(date).slice(0,10)+'T'+s.checkOutTime;parsedEnd=parseBookingDate(end);
+        }
+        if(!changedOut)$('#check-out').value=end;
+      }catch{}
     }updateQuote();
   }
   $('#check-in').oninput=suggestOut;$('#plan').onchange=suggestOut;$('#check-out').oninput=()=>{changedOut=true;if($('#check-out').value)$('#check-out').value=$('#check-out').value.slice(0,10)+'T'+s.checkOutTime;updateQuote()};
@@ -148,7 +156,7 @@ function reservation(s) {
       if(!validPhone($('#phone').value))throw new Error('Informe um celular válido com DDD.');
       if($('#contact-name').value.trim().length<2)throw new Error('Informe o nome do responsável.');
       button.disabled=true;
-      const data=await api('reserve',{method:'POST',body:JSON.stringify({space_id:s.id,check_in:$('#check-in').value,check_out:$('#check-out').value,plan:$('#plan').value,contact_name:$('#contact-name').value.trim(),guests:Number($('#guests').value),phone:$('#phone').value.trim(),message:$('#message').value.trim()})});
+      const data=await api('reserve',{method:'POST',body:JSON.stringify({space_id:s.id,check_in:$('#check-in').value,check_out:$('#check-out').value,plan:$('#plan').value,contact_name:$('#contact-name').value.trim(),guests:Number($('#guests').value),phone:$('#phone').value.trim(),message:$('#message').value.trim(),terms_accepted:$('#accept-reservation-terms').checked})});
       const target=new URL(data.checkout_url);if(target.protocol!=='https:'||!/(^|\.)mercadopago\.(com|com\.br)$/.test(target.hostname))throw new Error('Endereço de pagamento inválido.');location.href=data.checkout_url;
     }catch(err){$('.form-error').textContent=err.message;button.disabled=false}
   };

@@ -63,6 +63,7 @@ try {
  $guests=filter_var($input['guests']??null,FILTER_VALIDATE_INT);$spaceId=filter_var($input['space_id']??null,FILTER_VALIDATE_INT);
  $message=$input['message']??'';
  if(!$guests||$guests<1||!$spaceId||!is_string($message)||!trim($message)||mb_strlen($message)>2000)respond(['error'=>'Confira os dados do evento.'],422);
+ if(($input['terms_accepted']??false)!==true)respond(['error'=>'Confirme o aceite dos termos e das regras do espaço para continuar.'],422);
  $pdo->beginTransaction();$q=$pdo->prepare('SELECT * FROM spaces WHERE id=? FOR UPDATE');$q->execute([$spaceId]);$space=$q->fetch(PDO::FETCH_ASSOC);
  if(!$space||!$space['active']||$guests>$space['capacity']){$pdo->rollBack();respond(['error'=>'Espaço indisponível ou capacidade inválida.'],422);}
  $plan=$input['plan']??'daily';
@@ -71,7 +72,11 @@ try {
  $blockedUntil=(new DateTimeImmutable($quote['check_out'],new DateTimeZone('America/Sao_Paulo')))->modify('+'.(int)$space['cleanup_minutes'].' minutes')->format('Y-m-d H:i:s');
  $q=$pdo->prepare("SELECT id FROM reservations WHERE space_id=? AND check_in < ? AND blocked_until > ? AND status IN ('creating','pending','approved') LIMIT 1");$q->execute([$spaceId,$blockedUntil,$quote['check_in']]);
  if($q->fetchColumn()){$pdo->rollBack();respond(['error'=>'Há uma solicitação ativa em parte deste período. Escolha outra entrada ou saída, ou contate o atendimento.'],409);}
- $id=bin2hex(random_bytes(16));$q=$pdo->prepare('INSERT INTO reservations(id,user_id,space_id,event_date,check_in,check_out,blocked_until,plan,billable_days,contact_name,guests,phone,message,total) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');$q->execute([$id,$userId,$spaceId,$quote['event_date'],$quote['check_in'],$quote['check_out'],$blockedUntil,$plan,$quote['days'],trim($contactName),$guests,$phone,trim($message),$quote['total']]);
+ $id=bin2hex(random_bytes(16));
+ $acceptedAt=(new DateTimeImmutable('now',new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
+ $agreementSnapshot=reservationAgreementSnapshot($space,$quote,['plan'=>$plan,'contact_name'=>$contactName,'phone'=>$phone,'guests'=>$guests,'message'=>$message],RESERVATION_TERMS_VERSION);
+ $q=$pdo->prepare('INSERT INTO reservations(id,user_id,space_id,event_date,check_in,check_out,blocked_until,plan,billable_days,contact_name,guests,phone,message,terms_version,terms_accepted_at,agreement_snapshot,total) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+ $q->execute([$id,$userId,$spaceId,$quote['event_date'],$quote['check_in'],$quote['check_out'],$blockedUntil,$plan,$quote['days'],trim($contactName),$guests,$phone,trim($message),RESERVATION_TERMS_VERSION,$acceptedAt,$agreementSnapshot,$quote['total']]);
  $q=$pdo->prepare('UPDATE users SET name=?,phone=? WHERE id=?');$q->execute([trim($contactName),$phone,$userId]);$pdo->commit();
  try {
   firebase()->createDatabase()->getReference('chats/'.$id.'/members/'.$uid)->set(true);
