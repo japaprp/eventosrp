@@ -30,6 +30,10 @@ jobs:
         run: php tests/spaces.php
       - name: Test payment lifecycle
         run: php tests/payment_lifecycle.php
+      - name: Lint marketplace finance helpers
+        run: php -l src/marketplace_finance.php
+      - name: Test marketplace finance calculations
+        run: php tests/marketplace_finance.php
 
   frontend-tests:
     name: Frontend regression tests
