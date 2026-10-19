@@ -26,6 +26,7 @@ element('#signup').onclick();assert.equal(element('#signup-name').disabled,true)
 assert.equal(vm.runInContext("validPhone('(16) 99999-9999')",context),true);assert.equal(vm.runInContext("validPhone('123')",context),false);
 vm.runInContext("profile={name:'Cliente de teste',phone:'(16) 99999-9999'};reservation(spaces[6])",context);
 assert.equal(element('#contact-name').value,'Cliente de teste');assert.equal(element('#phone').value,'(16) 99999-9999');
+assert.match(element('#modal-content').innerHTML,/id="accept-reservation-terms"/);assert.match(element('#modal-content').innerHTML,/Esta plataforma apresenta espaços e permite solicitar locações/);assert.match(element('#modal-content').innerHTML,/Regras do espaço e cancelamento/);
 element('#plan').value='daily';element('#check-in').value='2030-01-04T09:00';element('#check-in').oninput();assert.equal(element('#check-out').value,'2030-01-05T09:00');assert.match(element('#quote').textContent,/1 diária/);
 element('#plan').value='weekend';element('#plan').onchange();assert.equal(element('#check-out').value,'2030-01-06T09:00');assert.match(element('#quote').textContent,/2 diárias/);
 element('#check-out').value='2030-01-07T09:00';element('#check-out').oninput();assert.match(element('#quote').textContent,/3 diárias/);assert.match(element('#quote').textContent,/5\.400/);
