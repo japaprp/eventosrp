@@ -32,7 +32,7 @@ function marketplaceOAuthConfiguration(): array {
         || empty($parts['host']) || isset($parts['fragment']) || isset($parts['user']) || isset($parts['pass'])) {
         throw new RuntimeException('Conexão de anfitrião com Mercado Pago ainda não configurada.');
     }
-    return ['client_id'=>$clientId,'client_secret'=>$clientSecret,'redirect_uri'=>$redirectUri,'encryption_key'=>$encryptionKey];
+    return ['client_id'=>$clientId,'client_secret'=>$clientSecret,'redirect_uri'=>$redirectUri,'encryption_key'=>$encryptionKey,'test_token'=>env('MP_OAUTH_TEST_TOKEN','true') === 'true'];
 }
 
 function marketplaceBase64Url(string $bytes): string {
