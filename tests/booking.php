@@ -23,4 +23,9 @@ $overlaps = [
 foreach ($overlaps as [$a,$b,$c,$d,$expected]) {
     if (bookingOverlaps($a,$b,$c,$d) !== $expected) throw new RuntimeException('Conflito de intervalo incorreto.');
 }
-echo count($cases)." testes de período/preço e ".count($overlaps)." testes de sobreposição passaram.\n";
+$space = ['id'=>12,'name'=>'Chácara Teste','address'=>'Rua Exemplo, 10','city'=>'Ribeirão Preto','rules'=>'Sem som após 22h. Cancelamento conforme política publicada.','check_in_time'=>'09:00:00','check_out_time'=>'09:00:00'];
+$quote = ['check_in'=>'2026-10-02 09:00:00','check_out'=>'2026-10-04 09:00:00','days'=>2,'total'=>'2000.00'];
+$reservation = ['plan'=>'daily','contact_name'=>'Cliente Teste','phone'=>'16999999999','guests'=>30,'message'=>'Aniversário familiar'];
+$snapshot = json_decode(reservationAgreementSnapshot($space,$quote,$reservation,RESERVATION_TERMS_VERSION),true,512,JSON_THROW_ON_ERROR);
+if ($snapshot['version'] !== RESERVATION_TERMS_VERSION || $snapshot['space']['rules_and_cancellation'] !== $space['rules'] || $snapshot['reservation']['total_brl'] !== '2000.00' || $snapshot['reservation']['guests'] !== 30) throw new RuntimeException('Snapshot do aceite não preservou os dados essenciais.');
+echo count($cases)." testes de período/preço, ".count($overlaps)." testes de sobreposição e 1 teste de snapshot do aceite passaram.\n";
