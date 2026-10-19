@@ -12,7 +12,7 @@ Aplicação responsiva em português, com catálogo público e backend PHP 8.2+,
 
 Se o banco já foi criado pela primeira versão, **não reimporte o schema**: aplique uma vez `database/migrations/002_booking_periods.sql`, após backup. Ela acrescenta os campos sem apagar usuários ou reservas. Reservas antigas passam a bloquear o dia inteiro. Se os IDs 7 ou 8 já estiverem ocupados por espaços reais, ajuste os exemplos e o catálogo para evitar divergência; a migração não substitui esses registros.
 
-Depois, aplique uma vez `database/migrations/003_space_management.sql` para habilitar anúncios com proprietário, fotos, horários e preparação entre reservas. Bancos novos devem importar apenas o `schema.sql` atualizado. As migrações não foram executadas neste computador, que não possui MySQL configurado.
+Depois, aplique uma vez `database/migrations/003_space_management.sql` para habilitar anúncios com proprietário, fotos, horários e preparação entre reservas. Em seguida, aplique `database/migrations/004_reservation_agreement.sql` e `database/migrations/005_payment_lifecycle.sql`, nessa ordem, cada uma uma única vez e após backup. Bancos novos devem importar apenas o `schema.sql` atualizado. As migrações não foram aplicadas em produção.
 
 Para visualizar apenas o catálogo, abra `public/index.html` ou sirva a pasta `public` com qualquer servidor estático. Login e API dependem do PHP e das credenciais.
 
@@ -46,15 +46,15 @@ O proprietário vê suas reservas recebidas e é incluído na conversa Firebase 
 
 ### Verificação
 
-Execute `node tests/frontend.mjs` e `php tests/booking.php`. Os testes verificam Ribeirão Preto, filtros combinados, formulário de cadastro, pré-preenchimento de contato, estimativa, regras de diárias/pacotes, datas inválidas e sobreposição. Testes de login, MySQL, chat e checkout reais dependem de serviços configurados.
+Execute `node tests/frontend.mjs`, `php tests/booking.php`, `php tests/spaces.php` e `php tests/payment_lifecycle.php`. Os testes verificam Ribeirão Preto, filtros combinados, formulário de cadastro, pré-preenchimento de contato, estimativa, regras de diárias/pacotes, datas inválidas e sobreposição. Testes de login, MySQL, chat e checkout reais dependem de serviços configurados.
 
-Execute também `php tests/spaces.php`, com mbstring habilitado, para validar preços, fotos, capacidade, horários, mínimos e demais campos dos anúncios. Os testes frontend verificam o formulário de espaços e o envio da recuperação de senha com Firebase simulado; envio real de e-mail depende da configuração.
+Os testes de pagamento validam a máquina de estados e as regras de liberação sem credenciais nem chamadas ao Mercado Pago. Os testes frontend verificam o formulário de espaços e o envio da recuperação de senha com Firebase simulado; envio real de e-mail depende da configuração.
 
 ## Antes de publicar
 
 O catálogo inicial contém **dados de demonstração e fotografias ilustrativas do Unsplash**, sem relação comprovada com os locais descritos. Substitua por anúncios reais usando o cadastro e remova ou pause os exemplos no banco antes de publicar. Em operação, o catálogo e as reservas usam preços e capacidade do MySQL.
 
-Adapte as minutas legais com dados da operadora, canal de privacidade, retenção e condições de cancelamento reais. Cancelamentos/reembolsos e administração de espaços são atendidos operacionalmente, não têm automação nesta versão. Reservas pendentes bloqueiam a data até conciliação operacional; não há expiração automática. Implemente essa rotina antes de operar em escala, sem liberar uma data cujo checkout ainda possa receber pagamento.
+Adapte as minutas legais com dados da operadora, canal de privacidade, retenção e condições de cancelamento reais. Cancelamentos e reembolsos continuam exigindo atendimento operacional. Preferências novas vencem após 3 dias; o bloqueio aguarda mais 6 horas e a conciliação sob demanda consulta pagamentos e a preferência no Mercado Pago antes de marcar uma reserva pendente como expirada. Essa verificação ocorre quando alguém tenta reservar um intervalo sobreposto, sem exigir agendador pago; não é uma tarefa em segundo plano. Estados pendentes, ambíguos, reembolsados ou contestados mantêm o bloqueio e exigem revisão. Reservas antigas sem `hold_expires_at` permanecem bloqueadas para revisão manual; não recebem expiração retroativa. Pagamentos aprovados depois de uma reserva expirada/cancelada/recusada são registrados como exceção com atenção `refund_required`, sem reativar a reserva nem causar venda duplicada.
 
 Use HTTPS, limites de requisições no proxy, backups protegidos e criptografia de disco no servidor/MySQL. Criptografia em repouso depende da infraestrutura; esta versão não implementa criptografia de campos. A plataforma não coleta número de cartão. O retorno do checkout nunca é usado para confirmar pagamento. Dependências e serviços externos precisam de conectividade. Configure monitoramento e rotina de conciliação de webhooks/pagamentos. Os dados de contato são acessíveis apenas à API autenticada e ao banco protegido.
 
@@ -70,3 +70,10 @@ Use HTTPS, limites de requisições no proxy, backups protegidos e criptografia 
 ### Registro de aceite da reserva
 
 A migração `004_reservation_agreement.sql` adiciona a versão dos termos aceitos, a data/hora do aceite e um snapshot JSON com as regras do espaço e os dados essenciais da proposta no momento da solicitação. A API exige `terms_accepted: true` e calcula o registro no servidor; o navegador não escolhe a versão nem define o preço. Registros antigos ficam marcados como `legacy` e não recebem aceite retroativo. Este registro melhora a rastreabilidade, mas não deve ser anunciado como assinatura eletrônica formal ou contrato juridicamente validado sem revisão profissional.
+
+
+### Ciclo de vida do pagamento
+
+A migração `005_payment_lifecycle.sql` amplia os estados da reserva com `expired`, grava o estado/status detalhado do pagamento, sinaliza revisão ou reembolso e mantém uma trilha idempotente de notificações por ID de pagamento. A API valida assinatura do webhook, referência externa, moeda e valor consultando o Mercado Pago. A aprovação só é aplicada se a reserva ainda estiver pendente e não houver outra reserva ativa sobreposta; webhooks repetidos não repetem a confirmação. Pagamentos recusados/cancelados não liberam imediatamente a data enquanto a preferência puder aceitar novas tentativas. Reembolso/contestação não cancela automaticamente uma reserva já aprovada.
+
+A conciliação é oportunista: acontece antes de uma nova tentativa de reserva sobre o mesmo intervalo. Se a API do provedor falhar, houver paginação incompleta, estado desconhecido ou pagamento pendente/em processamento, o bloqueio é preservado. Exceções `refund_required`, `review_required` e `chargeback` precisam de tratamento manual; não há reembolso automático implementado. As rotinas não foram testadas contra credenciais reais nem banco de produção.
