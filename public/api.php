@@ -147,8 +147,8 @@ try {
    header('Location: '.$appUrl.'/?mp_connect=error',true,302);exit;
   }
  }
- if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations','mp-connect','mp-account'],true))respond(['error'=>'Rota não encontrada.'],404);
- if((in_array($action,['my-spaces','host-reservations','mp-connect','mp-account'],true)&&$method!=='GET')||($action==='save-space'&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
+ if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations','mp-connect','mp-account','mp-disconnect'],true))respond(['error'=>'Rota não encontrada.'],404);
+ if((in_array($action,['my-spaces','host-reservations','mp-connect','mp-account'],true)&&$method!=='GET')||($action==='mp-disconnect'&&$method!=='POST')||($action==='save-space'&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
  if(($action==='reserve'&&$method!=='POST')||($action==='reservations'&&$method!=='GET')||($action==='profile'&&!in_array($method,['GET','POST'],true)))respond(['error'=>'Método não permitido.'],405);
  $header=$_SERVER['HTTP_AUTHORIZATION']??'';if(!preg_match('/^Bearer (.+)$/',$header,$match))respond(['error'=>'Entre na sua conta.'],401);
  try{$token=firebase()->createAuth()->verifyIdToken($match[1],true);}catch(Throwable $e){respond(['error'=>'Sessão inválida. Entre novamente.'],401);}
@@ -156,6 +156,7 @@ try {
  $q=$pdo->prepare('INSERT INTO users(firebase_uid,email) VALUES (?,?) ON DUPLICATE KEY UPDATE email=VALUES(email)');$q->execute([$uid,$email]);
  $q=$pdo->prepare('SELECT id FROM users WHERE firebase_uid=?');$q->execute([$uid]);$userId=$q->fetchColumn();
  if($action==='mp-account')respond(marketplaceSellerAccountSummary($pdo,(int)$userId));
+ if($action==='mp-disconnect'){marketplaceDisconnectSellerAccount($pdo,(int)$userId);respond(['status'=>'disconnected']);}
  if($action==='mp-connect'){
   try{respond(['authorization_url'=>marketplaceOAuthStart($pdo,(int)$userId)]);}
   catch(DomainException $e){respond(['error'=>$e->getMessage()],403);}
