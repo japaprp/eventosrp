@@ -7,6 +7,11 @@ function database(): PDO { static $pdo; return $pdo ??= new PDO('mysql:host='.en
 function firebase(): Kreait\Firebase\Factory { return (new Kreait\Firebase\Factory())->withServiceAccount(env('FIREBASE_CREDENTIALS'))->withDatabaseUri(env('FIREBASE_DATABASE_URL')); }
 function respond(mixed $data,int $status=200): never { http_response_code($status);echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);exit; }
 function mp(string $path,?array $payload=null): array {
+ if(eventosrpHttpTestMode()) {
+  if($path!=='/checkout/preferences'||!is_array($payload)||empty($payload['external_reference'])) throw new RuntimeException('Blocked non-checkout Mercado Pago call in isolated HTTP test.');
+  $id='http-test-pref-'.substr(hash('sha256',(string)$payload['external_reference']),0,20);
+  return ['id'=>$id,'sandbox_init_point'=>'http://127.0.0.1/mock-checkout/'.$id,'init_point'=>'http://127.0.0.1/mock-checkout/'.$id];
+ }
  $curl=curl_init('https://api.mercadopago.com'.$path);
  curl_setopt_array($curl,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>20,CURLOPT_HTTPHEADER=>['Authorization: Bearer '.env('MP_ACCESS_TOKEN'),'Content-Type: application/json']]);
  if($payload!==null)curl_setopt_array($curl,[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>json_encode($payload,JSON_THROW_ON_ERROR)]);
