@@ -155,37 +155,49 @@ function marketplaceOAuthComplete(PDO $pdo, string $code, string $state): int {
     $sellerId = marketplaceFetchSellerId($accessToken);
     $now = new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
     $expiresAt = $now->modify('+'.$expiresIn.' seconds')->format('Y-m-d H:i:s');
-    $accessEncrypted = marketplaceEncryptSecret($accessToken,$config['encryption_key']);
-    $refreshEncrypted = marketplaceEncryptSecret($refreshToken,$config['encryption_key']);
-    $connectedAt = $now->format('Y-m-d H:i:s');
+    marketplaceStoreSellerAccount(
+        $pdo,
+        (int)$consumed['owner_id'],
+        $sellerId,
+        marketplaceEncryptSecret($accessToken,$config['encryption_key']),
+        marketplaceEncryptSecret($refreshToken,$config['encryption_key']),
+        $expiresAt,
+        $now->format('Y-m-d H:i:s')
+    );
+    return $consumed['owner_id'];
+}
 
-    // Do not use a generic upsert here: a duplicate seller_user_id must never
-    // update another host's row through the UNIQUE seller identity constraint.
+/**
+ * Persist one OAuth connection without allowing a unique seller identity to
+ * update another host's account row.
+ */
+function marketplaceStoreSellerAccount(PDO $pdo, int $ownerId, string $sellerId, string $accessEncrypted, string $refreshEncrypted, string $expiresAt, string $connectedAt): void {
+    if ($ownerId < 1 || $sellerId === '' || !ctype_digit($sellerId)) {
+        throw new InvalidArgumentException('Identidade da conta Mercado Pago inválida.');
+    }
     $pdo->beginTransaction();
     try {
         $lockSuffix = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : '';
         $q = $pdo->prepare('SELECT owner_id FROM marketplace_seller_accounts WHERE seller_user_id=? AND owner_id<>? LIMIT 1'.$lockSuffix);
-        $q->execute([$sellerId,$consumed['owner_id']]);
+        $q->execute([$sellerId,$ownerId]);
         if ($q->fetchColumn() !== false) {
             throw new DomainException('Esta conta Mercado Pago já está vinculada a outro anfitrião.');
         }
 
         $q = $pdo->prepare('SELECT id FROM marketplace_seller_accounts WHERE owner_id=?'.$lockSuffix);
-        $q->execute([$consumed['owner_id']]);
-        $existingAccountId = $q->fetchColumn();
-        if ($existingAccountId !== false) {
+        $q->execute([$ownerId]);
+        if ($q->fetchColumn() !== false) {
             $q = $pdo->prepare("UPDATE marketplace_seller_accounts SET seller_user_id=?,access_token_encrypted=?,refresh_token_encrypted=?,token_expires_at=?,status='connected',connected_at=? WHERE owner_id=?");
-            $q->execute([$sellerId,$accessEncrypted,$refreshEncrypted,$expiresAt,$connectedAt,$consumed['owner_id']]);
+            $q->execute([$sellerId,$accessEncrypted,$refreshEncrypted,$expiresAt,$connectedAt,$ownerId]);
         } else {
             $q = $pdo->prepare("INSERT INTO marketplace_seller_accounts(owner_id,seller_user_id,access_token_encrypted,refresh_token_encrypted,token_expires_at,status,connected_at) VALUES (?,?,?,?,?,'connected',?)");
-            $q->execute([$consumed['owner_id'],$sellerId,$accessEncrypted,$refreshEncrypted,$expiresAt,$connectedAt]);
+            $q->execute([$ownerId,$sellerId,$accessEncrypted,$refreshEncrypted,$expiresAt,$connectedAt]);
         }
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $e;
     }
-    return $consumed['owner_id'];
 }
 
 function marketplaceSellerAccountSummary(PDO $pdo, int $ownerId): array {
