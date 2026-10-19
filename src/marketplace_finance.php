@@ -156,3 +156,18 @@ function marketplaceRecordLedgerEntry(PDO $pdo, array $entry): int {
         return (int)$existing['id'];
     }
 }
+
+/** A promotion may appear in the catalogue only after payment approval and within its paid window. */
+function marketplacePromotionIsVisible(array $promotion, DateTimeImmutable $now): bool {
+    if (($promotion['status'] ?? '') !== 'active' || ($promotion['payment_status'] ?? '') !== 'approved'
+        || empty($promotion['starts_at']) || empty($promotion['ends_at'])) {
+        return false;
+    }
+    try {
+        $start = new DateTimeImmutable((string)$promotion['starts_at'], new DateTimeZone('America/Sao_Paulo'));
+        $end = new DateTimeImmutable((string)$promotion['ends_at'], new DateTimeZone('America/Sao_Paulo'));
+    } catch (Throwable) {
+        return false;
+    }
+    return $end > $start && $now >= $start && $now < $end;
+}
