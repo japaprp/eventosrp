@@ -140,8 +140,11 @@ function marketplaceRecordLedgerEntry(PDO $pdo, array $entry): int {
             && $existing['provider_payment_id'] === $paymentId
             && $existing['provider_event_id'] === $eventId
             && $existing['entry_type'] === $type
-            && marketplaceMoneyToCents((string)$existing['gross_amount']) === $gross
-            && marketplaceSignedMoneyToCents((string)$existing['commission_amount']) === $commission;
+            && marketplaceSignedMoneyToCents((string)$existing['gross_amount']) === $gross
+            && (($existing['provider_fee_amount'] === null ? null : marketplaceSignedMoneyToCents((string)$existing['provider_fee_amount'])) === $providerFee)
+            && (($existing['commission_rate_bps'] === null ? null : (int)$existing['commission_rate_bps']) === $rate)
+            && marketplaceSignedMoneyToCents((string)$existing['commission_amount']) === $commission
+            && (($existing['host_net_estimate'] === null ? null : marketplaceSignedMoneyToCents((string)$existing['host_net_estimate'])) === $hostNet);
         if (!$matches) throw new RuntimeException('Colisão de idempotência no ledger financeiro.');
         return (int)$existing['id'];
     }
