@@ -116,7 +116,7 @@ function marketplaceOAuthPost(array $payload): array {
 }
 
 function marketplaceFetchSellerId(string $accessToken): string {
-    $curl = curl_init('https://api.mercadopago.com/users/me');
+    $curl = curl_init('https://api.mercadolibre.com/users/me');
     curl_setopt_array($curl, [
         CURLOPT_RETURNTRANSFER=>true,
         CURLOPT_TIMEOUT=>20,
