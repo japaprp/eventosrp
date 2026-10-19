@@ -25,6 +25,7 @@ foreach ($cases as [$reservationStatus,$paymentStatus,$existingId,$incomingId,$c
 $staleStatusCases = [
     ['approved','pending',true], ['approved','rejected',true],
     ['refunded','approved',true], ['refunded','pending',true],
+    ['refunded','charged_back',false], ['charged_back','refunded',true],
     ['charged_back','in_process',true], ['charged_back','approved',true],
     ['approved','refunded',false], ['approved','charged_back',false],
     ['pending','approved',false], [null,'pending',false],
