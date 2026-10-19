@@ -167,3 +167,56 @@ function marketplaceSellerAccountSummary(PDO $pdo, int $ownerId): array {
     if (!$row) return ['status'=>'not_connected','seller_user_id'=>null,'token_expires_at'=>null,'connected_at'=>null];
     return ['status'=>(string)$row['status'],'seller_user_id'=>$row['seller_user_id'],'token_expires_at'=>$row['token_expires_at'],'connected_at'=>$row['connected_at']];
 }
+
+/** Serialize refresh-token rotation so concurrent requests cannot overwrite a newer token. */
+function marketplaceSellerAccessToken(PDO $pdo, int $ownerId): string {
+    $config = marketplaceOAuthConfiguration();
+    $pdo->beginTransaction();
+    try {
+        $q = $pdo->prepare('SELECT * FROM marketplace_seller_accounts WHERE owner_id=? FOR UPDATE');
+        $q->execute([$ownerId]);
+        $row = $q->fetch(PDO::FETCH_ASSOC);
+        if (!$row || $row['status'] !== 'connected' || empty($row['refresh_token_encrypted'])) {
+            throw new RuntimeException('O anfitrião precisa reconectar sua conta Mercado Pago.');
+        }
+        $now = new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
+        $expires = !empty($row['token_expires_at']) ? new DateTimeImmutable((string)$row['token_expires_at'], new DateTimeZone('America/Sao_Paulo')) : $now;
+        if ($expires > $now->modify('+5 minutes') && !empty($row['access_token_encrypted'])) {
+            $access = marketplaceDecryptSecret((string)$row['access_token_encrypted'], $config['encryption_key']);
+            $pdo->commit();
+            return $access;
+        }
+        $refresh = marketplaceDecryptSecret((string)$row['refresh_token_encrypted'], $config['encryption_key']);
+        try {
+            $tokens = marketplaceOAuthPost([
+                'client_id'=>$config['client_id'],
+                'client_secret'=>$config['client_secret'],
+                'grant_type'=>'refresh_token',
+                'refresh_token'=>$refresh,
+            ]);
+            $access = (string)($tokens['access_token'] ?? '');
+            $newRefresh = (string)($tokens['refresh_token'] ?? '');
+            $expiresIn = filter_var($tokens['expires_in'] ?? null, FILTER_VALIDATE_INT);
+            if ($access === '' || $newRefresh === '' || !$expiresIn || $expiresIn < 60) {
+                throw new RuntimeException('Renovação OAuth incompleta.');
+            }
+            $expiresAt = $now->modify('+'.$expiresIn.' seconds')->format('Y-m-d H:i:s');
+            $q = $pdo->prepare("UPDATE marketplace_seller_accounts SET access_token_encrypted=?,refresh_token_encrypted=?,token_expires_at=?,status='connected' WHERE owner_id=?");
+            $q->execute([
+                marketplaceEncryptSecret($access,$config['encryption_key']),
+                marketplaceEncryptSecret($newRefresh,$config['encryption_key']),
+                $expiresAt,$ownerId,
+            ]);
+            $pdo->commit();
+            return $access;
+        } catch (Throwable $e) {
+            $q = $pdo->prepare("UPDATE marketplace_seller_accounts SET status='reauthorization_required' WHERE owner_id=?");
+            $q->execute([$ownerId]);
+            $pdo->commit();
+            throw new RuntimeException('A conexão do anfitrião expirou. Reconecte a conta Mercado Pago.');
+        }
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+}
