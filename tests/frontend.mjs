@@ -15,7 +15,7 @@ const element=selector=>{if(!elements.has(selector))elements.set(selector,{value
 const context=vm.createContext({document:{querySelector:element,querySelectorAll:()=>[]},localStorage:{getItem:()=>null},location:{search:''},URLSearchParams,Intl,URL,Date,console,setTimeout,localDateTime,parseBookingDate,quoteBooking,formatBookingDate,fetch:async()=>({ok:false})});
 let source=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8').replace(/^import .*;\n/,'').split(/\ntry\s*\{\s*\n\s*const response = await fetch\('config\.php'\);/)[0];
 vm.runInContext(source,context);
-vm.runInContext('render()',context);const cardCount=()=>((element('#cards').innerHTML.match(/class=\"card\"/g)||[]).length);assert.equal(cardCount(),8);
+vm.runInContext('render()',context);const cardCount=()=>((element('#cards').innerHTML.match(/class=\"card\"/g)||[]).length);const quoteText=()=>quoteText()||element('#quote').innerHTML;assert.equal(cardCount(),8);
 element('#location').value='Ribeirão Preto';vm.runInContext('render()',context);assert.equal(cardCount(),2);
 element('#capacity').value='200';vm.runInContext('render()',context);assert.equal(cardCount(),1);
 element('#capacity').value='0';vm.runInContext("type='Ao ar livre';render()",context);assert.equal(cardCount(),1);
