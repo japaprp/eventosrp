@@ -65,3 +65,8 @@ Use HTTPS, limites de requisições no proxy, backups protegidos e criptografia 
 - [Regras do Realtime Database](https://firebase.google.com/docs/database/security/rules-conditions)
 - [Preferências Checkout Pro](https://www.mercadopago.com.br/developers/pt/reference/online-payments/checkout-pro-preferences/create-preference/post)
 - [Assinaturas de webhooks](https://www.mercadopago.com.br/developers/pt/docs/subscriptions/additional-content/your-integrations/notifications/webhooks)
+
+
+### Registro de aceite da reserva
+
+A migração `004_reservation_agreement.sql` adiciona a versão dos termos aceitos, a data/hora do aceite e um snapshot JSON com as regras do espaço e os dados essenciais da proposta no momento da solicitação. A API exige `terms_accepted: true` e calcula o registro no servidor; o navegador não escolhe a versão nem define o preço. Registros antigos ficam marcados como `legacy` e não recebem aceite retroativo. Este registro melhora a rastreabilidade, mas não deve ser anunciado como assinatura eletrônica formal ou contrato juridicamente validado sem revisão profissional.
