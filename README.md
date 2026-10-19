@@ -7,7 +7,7 @@ Aplicação responsiva em português, com catálogo público e backend PHP 8.2+,
 1. Instale PHP com extensões PDO MySQL, cURL e mbstring, Composer e MySQL 8.
 2. Execute `composer install` na raiz.
 3. Copie `.env.example` para `.env` e configure os valores.
-4. Importe `database/schema.sql` no MySQL. Os nomes das tabelas são `users`, `spaces` e `reservations`.
+4. Importe `database/schema.sql` no MySQL. As tabelas incluem `users`, `spaces`, `reservations` e `reservation_payment_events`.
 5. Execute `php -S localhost:8080 -t public` e abra http://localhost:8080.
 
 Se o banco já foi criado pela primeira versão, **não reimporte o schema**: aplique uma vez `database/migrations/002_booking_periods.sql`, após backup. Ela acrescenta os campos sem apagar usuários ou reservas. Reservas antigas passam a bloquear o dia inteiro. Se os IDs 7 ou 8 já estiverem ocupados por espaços reais, ajuste os exemplos e o catálogo para evitar divergência; a migração não substitui esses registros.
