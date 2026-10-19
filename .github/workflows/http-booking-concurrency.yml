@@ -1,0 +1,78 @@
+name: Isolated HTTP booking concurrency
+
+on:
+  pull_request:
+    paths:
+      - 'src/bootstrap.php'
+      - 'public/api.php'
+      - 'src/booking.php'
+      - 'src/payment_lifecycle.php'
+      - 'src/spaces.php'
+      - 'database/schema.sql'
+      - 'tests/http/**'
+      - '.github/workflows/http-booking-concurrency.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  http-booking-concurrency:
+    name: Concurrent reservations through the real HTTP endpoint
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: eventosrp_http_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: eventosrp_http_test
+      DB_USER: root
+      DB_PASSWORD: root
+      EVENTOSRP_HTTP_TEST: '1'
+      HTTP_TEST_BASE_URL: http://127.0.0.1:8088
+      APP_URL: https://eventosrp-test.invalid
+      MP_ACCESS_TOKEN: isolated-test-token
+      MP_WEBHOOK_SECRET: isolated-test-webhook-secret
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: curl, mbstring, pdo_mysql
+          coverage: none
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist
+      - name: Create isolated database schema
+        run: |
+          sed '1,2d' database/schema.sql | mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -proot eventosrp_http_test
+      - name: Lint HTTP test harness and endpoint dependencies
+        run: |
+          php -l src/bootstrap.php
+          php -l tests/http/prepend.php
+          php -l tests/http/concurrent_booking.php
+          php -l public/api.php
+      - name: Run real HTTP concurrency test with isolated adapters
+        shell: bash
+        run: |
+          set -euo pipefail
+          PHP_CLI_SERVER_WORKERS=4 php -d auto_prepend_file=tests/http/prepend.php -S 127.0.0.1:8088 -t public > /tmp/eventosrp-http-test-server.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            pkill -f '[p]hp -S 127.0.0.1:8088' 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          php tests/http/concurrent_booking.php
