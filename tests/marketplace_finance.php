@@ -42,4 +42,34 @@ $keyC = marketplaceLedgerIdempotencyKey('refund_reversal', 'pay-123', 'approved-
 expectSame($keyA, $keyB, 'Chave idempotente');
 if ($keyA === $keyC) throw new RuntimeException('Tipos de evento distintos precisam de chaves distintas.');
 
-echo "Cálculos de comissão, anúncios e idempotência passaram.\n";
+$pdo = new PDO('sqlite::memory:');
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$pdo->exec('CREATE TABLE marketplace_commission_ledger (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, reservation_id TEXT, owner_id INTEGER, provider_payment_id TEXT,
+ provider_event_id TEXT, entry_type TEXT, currency TEXT, gross_amount TEXT, provider_fee_amount TEXT,
+ commission_rate_bps INTEGER, commission_amount TEXT, host_net_estimate TEXT, idempotency_key TEXT UNIQUE,
+ reverses_entry_id INTEGER, metadata TEXT
+)');
+$entry = [
+ 'reservation_id'=>str_repeat('a',32),'owner_id'=>7,'provider_payment_id'=>'pay-123',
+ 'provider_event_id'=>'approved-event','entry_type'=>'commission_accrual','gross_amount'=>'1000.00',
+ 'provider_fee_amount'=>'32.50','commission_rate_bps'=>800,'commission_amount'=>'80.00',
+ 'host_net_estimate'=>'887.50','metadata'=>['source'=>'test'],
+];
+$id1 = marketplaceRecordLedgerEntry($pdo,$entry);
+$id2 = marketplaceRecordLedgerEntry($pdo,$entry);
+expectSame($id1,$id2,'Repetição do ledger precisa retornar o registro existente');
+$changed = $entry; $changed['commission_amount']='81.00';
+expectInvalid(fn() => marketplaceRecordLedgerEntry($pdo,$changed),'Mesma chave com valor diferente deve ser bloqueada');
+$reversal = $entry;
+$reversal['entry_type']='refund_reversal';
+$reversal['provider_event_id']='refund-event';
+$reversal['gross_amount']='-1000.00';
+$reversal['provider_fee_amount']='-32.50';
+$reversal['commission_amount']='-80.00';
+$reversal['host_net_estimate']='-887.50';
+$reversal['reverses_entry_id']=$id1;
+$id3 = marketplaceRecordLedgerEntry($pdo,$reversal);
+if ($id3 === $id1) throw new RuntimeException('Estorno precisa ser um novo evento append-only.');
+
+echo "Cálculos, idempotência e reversões do ledger passaram.\n";
