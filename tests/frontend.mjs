@@ -15,9 +15,9 @@ const element=selector=>{if(!elements.has(selector))elements.set(selector,{value
 const context=vm.createContext({document:{querySelector:element,querySelectorAll:()=>[]},localStorage:{getItem:()=>null},location:{search:''},URLSearchParams,Intl,URL,Date,console,setTimeout,localDateTime,parseBookingDate,quoteBooking,formatBookingDate,fetch:async()=>({ok:false})});
 let source=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8').replace(/^import .*;\n/,'').split(/\ntry\s*\{\s*\n\s*const response = await fetch\('config\.php'\);/)[0];
 vm.runInContext(source,context);
-assert.equal(element('#count').textContent,'8 espaços encontrados');
-element('#location').value='Ribeirão Preto';vm.runInContext('render()',context);assert.equal(element('#count').textContent,'2 espaços encontrados');
-element('#capacity').value='200';vm.runInContext('render()',context);assert.equal(element('#count').textContent,'1 espaços encontrados');
+vm.runInContext('render()',context);const cardCount=()=>((element('#cards').innerHTML.match(/class=\"card\"/g)||[]).length);assert.equal(cardCount(),8);
+element('#location').value='Ribeirão Preto';vm.runInContext('render()',context);assert.equal(cardCount(),2);
+element('#capacity').value='200';vm.runInContext('render()',context);assert.equal(cardCount(),1);
 vm.runInContext("type='Ao ar livre';render()",context);assert.equal(element('#empty').hidden,false);
 element('#location').value='Campinas';element('#capacity').value='0';element('#event').value='Corporativo';vm.runInContext("type='';render()",context);assert.equal(element('#count').textContent,'1 espaços encontrados');
 vm.runInContext('login()',context);assert.match(element('#modal-content').innerHTML,/autocomplete="name"/);assert.match(element('#modal-content').innerHTML,/id="signup-phone"/);
