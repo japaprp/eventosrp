@@ -9,6 +9,10 @@ function expectInvalid(callable $operation, string $message): void {
     try { $operation(); } catch (InvalidArgumentException) { return; }
     throw new RuntimeException($message . ': deveria rejeitar a entrada.');
 }
+function expectThrows(callable $operation, string $message): void {
+    try { $operation(); } catch (Throwable) { return; }
+    throw new RuntimeException($message . ': deveria lançar exceção.');
+}
 
 $eight = marketplaceCommissionQuote('1000.00', 800, '32.50');
 expectSame('80.00', $eight['commission_amount'], 'Comissão de 8%');
@@ -60,7 +64,7 @@ $id1 = marketplaceRecordLedgerEntry($pdo,$entry);
 $id2 = marketplaceRecordLedgerEntry($pdo,$entry);
 expectSame($id1,$id2,'Repetição do ledger precisa retornar o registro existente');
 $changed = $entry; $changed['commission_amount']='81.00';
-expectInvalid(fn() => marketplaceRecordLedgerEntry($pdo,$changed),'Mesma chave com valor diferente deve ser bloqueada');
+expectThrows(fn() => marketplaceRecordLedgerEntry($pdo,$changed),'Mesma chave com valor diferente deve ser bloqueada');
 $reversal = $entry;
 $reversal['entry_type']='refund_reversal';
 $reversal['provider_event_id']='refund-event';
