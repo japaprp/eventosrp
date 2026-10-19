@@ -68,7 +68,7 @@ function paymentLifecycleApplyVerifiedPayment(PDO $pdo, string $reservationId, a
    if($existingId===$paymentId){
     // Never let a delayed/older non-terminal event downgrade a payment already recorded as approved.
     // Explicit refund/chargeback outcomes remain actionable and require review.
-    if($reservation['payment_status']==='approved'&&!in_array($status,['refunded','charged_back'],true)){
+    if(paymentLifecycleShouldPreserveApprovedStatus((string)$reservation['status'],$reservation['payment_status']===null?null:(string)$reservation['payment_status'],$status)){
      // Preserve the approved financial state; the event remains recorded for audit.
     }else{
      $attention=in_array($status,['refunded','charged_back'],true)?($status==='charged_back'?'chargeback':'review_required'):'none';
