@@ -63,6 +63,7 @@ function marketplaceOAuthStart(PDO $pdo, int $ownerId): string {
         'state'=>$state,
         'code_challenge'=>$challenge,
         'code_challenge_method'=>'S256',
+        'scope'=>'offline_access',
     ];
     return 'https://auth.mercadopago.com.br/authorization?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
 }
@@ -215,6 +216,21 @@ function marketplaceSellerAccessToken(PDO $pdo, int $ownerId): string {
             $pdo->commit();
             throw new RuntimeException('A conexão do anfitrião expirou. Reconecte a conta Mercado Pago.');
         }
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+}
+
+function marketplaceDisconnectSellerAccount(PDO $pdo, int $ownerId): void {
+    $now = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
+    $pdo->beginTransaction();
+    try {
+        $q = $pdo->prepare("UPDATE marketplace_seller_accounts SET seller_user_id=NULL,access_token_encrypted=NULL,refresh_token_encrypted=NULL,token_expires_at=NULL,status='disconnected' WHERE owner_id=?");
+        $q->execute([$ownerId]);
+        $q = $pdo->prepare('UPDATE marketplace_oauth_states SET used_at=? WHERE owner_id=? AND used_at IS NULL');
+        $q->execute([$now,$ownerId]);
+        $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $e;
