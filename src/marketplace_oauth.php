@@ -52,6 +52,8 @@ function marketplaceOAuthStart(PDO $pdo, int $ownerId): string {
     $now = new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
     $expires = $now->modify('+10 minutes')->format('Y-m-d H:i:s');
 
+    $cleanup = $pdo->prepare('DELETE FROM marketplace_oauth_states WHERE expires_at < ?');
+    $cleanup->execute([$now->format('Y-m-d H:i:s')]);
     $q = $pdo->prepare('INSERT INTO marketplace_oauth_states(state_hash,owner_id,code_verifier_encrypted,expires_at) VALUES (?,?,?,?)');
     $q->execute([$stateHash,$ownerId,marketplaceEncryptSecret($verifier,$config['encryption_key']),$expires]);
 
@@ -142,6 +144,7 @@ function marketplaceOAuthComplete(PDO $pdo, string $code, string $state): int {
         'code'=>$code,
         'redirect_uri'=>$config['redirect_uri'],
         'code_verifier'=>$consumed['code_verifier'],
+        'test_token'=>$config['test_token'] ? 'true' : 'false',
     ]);
     $accessToken = (string)($tokens['access_token'] ?? '');
     $refreshToken = (string)($tokens['refresh_token'] ?? '');
@@ -196,6 +199,7 @@ function marketplaceSellerAccessToken(PDO $pdo, int $ownerId): string {
                 'client_secret'=>$config['client_secret'],
                 'grant_type'=>'refresh_token',
                 'refresh_token'=>$refresh,
+                'test_token'=>$config['test_token'] ? 'true' : 'false',
             ]);
             $access = (string)($tokens['access_token'] ?? '');
             $newRefresh = (string)($tokens['refresh_token'] ?? '');
