@@ -60,3 +60,17 @@ function paymentLifecycleCanReleaseHold(
     }
     return true;
 }
+
+/**
+ * A late or out-of-order non-terminal event must not downgrade an already approved payment.
+ * Refunds and chargebacks are explicit financial outcomes and must still be processed.
+ */
+function paymentLifecycleShouldPreserveApprovedStatus(
+    string $reservationStatus,
+    ?string $existingPaymentStatus,
+    string $incomingPaymentStatus
+): bool {
+    return $reservationStatus === 'approved'
+        && $existingPaymentStatus === 'approved'
+        && !in_array($incomingPaymentStatus, ['refunded', 'charged_back'], true);
+}
