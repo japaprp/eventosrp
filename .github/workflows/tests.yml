@@ -49,3 +49,36 @@ jobs:
           node-version: '20'
       - name: Test frontend
         run: node tests/frontend.mjs
+
+  schema-smoke:
+    name: MySQL fresh-schema integration
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Import fresh schema
+        run: mysql --host=127.0.0.1 --user=root --password=root < database/schema.sql
+      - name: Verify marketplace tables and required reservation fields
+        shell: bash
+        run: |
+          set -euo pipefail
+          tables="$(mysql --host=127.0.0.1 --user=root --password=root --batch --skip-column-names --execute="SHOW TABLES FROM encontro")"
+          for table in users spaces reservations reservation_payment_events marketplace_seller_accounts marketplace_oauth_states marketplace_commission_ledger space_promotions; do
+            grep -qx "$table" <<< "$tables"
+          done
+          columns="$(mysql --host=127.0.0.1 --user=root --password=root --batch --skip-column-names --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='encontro' AND table_name='reservations' AND column_name IN ('terms_version','terms_accepted_at','agreement_snapshot','hold_expires_at','payment_attention')")"
+          test "$columns" = "5"
+          seeded="$(mysql --host=127.0.0.1 --user=root --password=root --batch --skip-column-names --execute="SELECT COUNT(*) FROM encontro.spaces")"
+          test "$seeded" = "8"
