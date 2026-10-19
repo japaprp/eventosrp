@@ -29,7 +29,7 @@ function bookingOverlaps(string $startA, string $endA, string $startB, string $e
 
 
 const RESERVATION_TERMS_VERSION = 'reserva-v1-2026-10';
-const RESERVATION_PLATFORM_TERMS = 'A reserva depende da confirmação do pagamento e fica sujeita às informações do espaço, aos horários, ao preço e às regras e condições de cancelamento apresentados antes da confirmação. O aceite registra a versão dos termos exibida no momento da solicitação; não substitui a assinatura eletrônica formal quando ela for exigida.';
+const RESERVATION_PLATFORM_TERMS = 'Esta plataforma apresenta espaços e permite solicitar locações. O usuário deve fornecer informações corretas, respeitar a capacidade e as regras do local, e aceitar os termos de serviço. Pagamentos são processados via Mercado Pago. Cancelamentos devem ser feitos conforme as regras do host.';
 function reservationAgreementSnapshot(array $space, array $quote, array $reservation, string $version): string {
     return json_encode([
         'version' => $version,
