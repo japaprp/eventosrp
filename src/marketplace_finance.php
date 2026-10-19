@@ -95,6 +95,12 @@ function marketplaceRecordLedgerEntry(PDO $pdo, array $entry): int {
         || $paymentId === '' || strlen($paymentId) > 100 || $eventId === '' || strlen($eventId) > 150) {
         throw new InvalidArgumentException('Referências do ledger inválidas.');
     }
+    $ownership = $pdo->prepare('SELECT s.owner_id FROM reservations r JOIN spaces s ON s.id=r.space_id WHERE r.id=?');
+    $ownership->execute([$reservationId]);
+    $actualOwner = $ownership->fetchColumn();
+    if ($actualOwner === false || $actualOwner === null || (int)$actualOwner !== (int)$ownerId) {
+        throw new InvalidArgumentException('A reserva não pertence ao anfitrião informado.');
+    }
     $key = marketplaceLedgerIdempotencyKey($type, $paymentId, $eventId);
     $gross = marketplaceSignedMoneyToCents((string)($entry['gross_amount'] ?? ''));
     $commission = marketplaceSignedMoneyToCents((string)($entry['commission_amount'] ?? ''));
@@ -130,7 +136,7 @@ function marketplaceRecordLedgerEntry(PDO $pdo, array $entry): int {
         $q->execute($values);
         return (int)$pdo->lastInsertId();
     } catch (PDOException $e) {
-        $q = $pdo->prepare('SELECT id,reservation_id,owner_id,provider_payment_id,provider_event_id,entry_type,gross_amount,provider_fee_amount,commission_rate_bps,commission_amount,host_net_estimate FROM marketplace_commission_ledger WHERE idempotency_key=?');
+        $q = $pdo->prepare('SELECT id,reservation_id,owner_id,provider_payment_id,provider_event_id,entry_type,gross_amount,provider_fee_amount,commission_rate_bps,commission_amount,host_net_estimate,reverses_entry_id,metadata FROM marketplace_commission_ledger WHERE idempotency_key=?');
         $q->execute([$key]);
         $existing = $q->fetch(PDO::FETCH_ASSOC);
         if (!$existing) throw $e;
@@ -143,7 +149,9 @@ function marketplaceRecordLedgerEntry(PDO $pdo, array $entry): int {
             && (($existing['provider_fee_amount'] === null ? null : marketplaceSignedMoneyToCents((string)$existing['provider_fee_amount'])) === $providerFee)
             && (($existing['commission_rate_bps'] === null ? null : (int)$existing['commission_rate_bps']) === $rate)
             && marketplaceSignedMoneyToCents((string)$existing['commission_amount']) === $commission
-            && (($existing['host_net_estimate'] === null ? null : marketplaceSignedMoneyToCents((string)$existing['host_net_estimate'])) === $hostNet);
+            && (($existing['host_net_estimate'] === null ? null : marketplaceSignedMoneyToCents((string)$existing['host_net_estimate'])) === $hostNet)
+            && (($existing['reverses_entry_id'] === null ? null : (int)$existing['reverses_entry_id']) === ($reverses === null ? null : (int)$reverses))
+            && (($existing['metadata'] === null ? null : (string)$existing['metadata']) === $metadataJson);
         if (!$matches) throw new RuntimeException('Colisão de idempotência no ledger financeiro.');
         return (int)$existing['id'];
     }
