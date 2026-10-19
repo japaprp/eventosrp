@@ -22,6 +22,19 @@ foreach ($cases as [$reservationStatus,$paymentStatus,$existingId,$incomingId,$c
     $actual = paymentLifecycleDecision($reservationStatus,$paymentStatus,$existingId,$incomingId,$conflict);
     if ($actual !== $expected) throw new RuntimeException("Transição inesperada: {$reservationStatus}/{$paymentStatus}; esperado {$expected}, recebido {$actual}");
 }
+
+$monotonicCases = [
+    ['approved','approved','pending',true],
+    ['approved','approved','rejected',true],
+    ['approved','approved','refunded',false],
+    ['approved','approved','charged_back',false],
+    ['pending','approved','pending',false],
+    ['approved','pending','rejected',false],
+];
+foreach ($monotonicCases as [$reservationStatus,$existingPaymentStatus,$incomingPaymentStatus,$expected]) {
+    $actual = paymentLifecycleShouldPreserveApprovedStatus($reservationStatus,$existingPaymentStatus,$incomingPaymentStatus);
+    if ($actual !== $expected) throw new RuntimeException('Uma atualização fora de ordem alterou indevidamente o estado financeiro.');
+}
 $now = new DateTimeImmutable('2026-10-19T12:00:00-03:00');
 $expiredHold = '2026-10-19 11:00:00';
 $futureHold = '2026-10-19 13:00:00';
