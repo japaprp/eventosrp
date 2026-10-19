@@ -13,7 +13,7 @@ assert.match(formatBookingDate('2026-10-02 09:00:00'),/02\/10\/2026/);
 const elements=new Map();
 const element=selector=>{if(!elements.has(selector))elements.set(selector,{value:'',textContent:'',innerHTML:'',hidden:false,style:{},dataset:{},classList:{toggle(){}},addEventListener(){},scrollIntoView(){},showModal(){this.open=true},close(){this.open=false},reportValidity(){return true}});return elements.get(selector)};
 const context=vm.createContext({document:{querySelector:element,querySelectorAll:()=>[]},localStorage:{getItem:()=>null},location:{search:''},URLSearchParams,Intl,URL,Date,console,setTimeout,localDateTime,parseBookingDate,quoteBooking,formatBookingDate,fetch:async()=>({ok:false})});
-let source=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8').replace(/^import .*;\n/,'').split('try{const response=await fetch')[0];
+let source=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8').replace(/^import .*;\n/,'').split(/\ntry\s*\{\s*\n\s*const response = await fetch\('config\.php'\);/)[0];
 vm.runInContext(source,context);
 assert.equal(element('#count').textContent,'8 espaços encontrados');
 element('#location').value='Ribeirão Preto';vm.runInContext('render()',context);assert.equal(element('#count').textContent,'2 espaços encontrados');
