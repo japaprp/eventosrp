@@ -31,7 +31,14 @@ function paymentLifecycleApplyVerifiedPayment(PDO $pdo, string $reservationId, a
   if(!$reservation){$pdo->commit();return;}
   if(($payment['currency_id']??'')!=='BRL'||abs((float)($payment['transaction_amount']??-1)-(float)$reservation['total'])>0.001)throw new InvalidArgumentException('Valor ou moeda do pagamento inconsistente.');
   $existingId=isset($reservation['payment_id'])?(string)$reservation['payment_id']:null;
-  if($existingId===$paymentId && paymentLifecycleIsStaleStatus(isset($reservation['payment_status'])?(string)$reservation['payment_status']:null,$status)){
+  $eventStateQuery=$pdo->prepare('SELECT provider_status FROM reservation_payment_events WHERE payment_id=? AND reservation_id=?');
+  $eventStateQuery->execute([$paymentId,$reservationId]);
+  $previousEventStatus=$eventStateQuery->fetchColumn();
+  $staleAgainstReservation=$existingId===$paymentId
+   && paymentLifecycleIsStaleStatus(isset($reservation['payment_status'])?(string)$reservation['payment_status']:null,$status);
+  $staleAgainstEvent=is_string($previousEventStatus)
+   && paymentLifecycleIsStaleStatus($previousEventStatus,$status);
+  if($staleAgainstReservation||$staleAgainstEvent){
    paymentLifecycleRecordEvent($pdo,$reservationId,$payment);
    $pdo->commit();
    return;
