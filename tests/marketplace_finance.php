@@ -60,6 +60,7 @@ $entry = [
  'provider_fee_amount'=>'32.50','commission_rate_bps'=>800,'commission_amount'=>'80.00',
  'host_net_estimate'=>'887.50','metadata'=>['source'=>'test'],
 ];
+expectInvalid(fn() => marketplaceRecordLedgerEntry($pdo,array_merge($entry,['owner_id'=>8])),'Ledger não pode atribuir reserva a outro anfitrião');
 $id1 = marketplaceRecordLedgerEntry($pdo,$entry);
 $id2 = marketplaceRecordLedgerEntry($pdo,$entry);
 expectSame($id1,$id2,'Repetição do ledger precisa retornar o registro existente');
