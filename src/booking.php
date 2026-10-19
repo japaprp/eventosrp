@@ -26,3 +26,33 @@ function bookingQuote(mixed $checkIn, mixed $checkOut, mixed $plan, string $dail
 function bookingOverlaps(string $startA, string $endA, string $startB, string $endB): bool {
     return $startA < $endB && $endA > $startB;
 }
+
+
+const RESERVATION_TERMS_VERSION = 'reserva-v1-2026-10';
+const RESERVATION_PLATFORM_TERMS = 'A reserva depende da confirmação do pagamento e fica sujeita às informações do espaço, aos horários, ao preço e às regras e condições de cancelamento apresentados antes da confirmação. O aceite registra a versão dos termos exibida no momento da solicitação; não substitui a assinatura eletrônica formal quando ela for exigida.';
+function reservationAgreementSnapshot(array $space, array $quote, array $reservation, string $version): string {
+    return json_encode([
+        'version' => $version,
+        'platform_terms' => RESERVATION_PLATFORM_TERMS,
+        'space' => [
+            'id' => (int) $space['id'],
+            'name' => (string) $space['name'],
+            'address' => (string) ($space['address'] ?? ''),
+            'city' => (string) $space['city'],
+            'rules_and_cancellation' => (string) ($space['rules'] ?? ''),
+            'check_in_time' => substr((string) $space['check_in_time'], 0, 5),
+            'check_out_time' => substr((string) $space['check_out_time'], 0, 5),
+        ],
+        'reservation' => [
+            'check_in' => $quote['check_in'],
+            'check_out' => $quote['check_out'],
+            'plan' => (string) $reservation['plan'],
+            'billable_days' => (int) $quote['days'],
+            'total_brl' => $quote['total'],
+            'contact_name' => trim((string) $reservation['contact_name']),
+            'phone' => trim((string) $reservation['phone']),
+            'guests' => (int) $reservation['guests'],
+            'message' => trim((string) $reservation['message']),
+        ],
+    ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}
