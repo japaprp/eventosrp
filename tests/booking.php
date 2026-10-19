@@ -28,4 +28,8 @@ $quote = ['check_in'=>'2026-10-02 09:00:00','check_out'=>'2026-10-04 09:00:00','
 $reservation = ['plan'=>'daily','contact_name'=>'Cliente Teste','phone'=>'16999999999','guests'=>30,'message'=>'Aniversário familiar'];
 $snapshot = json_decode(reservationAgreementSnapshot($space,$quote,$reservation,RESERVATION_TERMS_VERSION),true,512,JSON_THROW_ON_ERROR);
 if ($snapshot['version'] !== RESERVATION_TERMS_VERSION || $snapshot['space']['rules_and_cancellation'] !== $space['rules'] || $snapshot['reservation']['total_brl'] !== '2000.00' || $snapshot['reservation']['guests'] !== 30) throw new RuntimeException('Snapshot do aceite não preservou os dados essenciais.');
+if ($snapshot['platform_terms'] !== RESERVATION_PLATFORM_TERMS) throw new RuntimeException('Os termos registrados divergem da versão apresentada ao usuário.');
+$spaceWithoutRules = $space; $spaceWithoutRules['rules'] = '';
+$fallbackSnapshot = json_decode(reservationAgreementSnapshot($spaceWithoutRules,$quote,$reservation,RESERVATION_TERMS_VERSION),true,512,JSON_THROW_ON_ERROR);
+if ($fallbackSnapshot['space']['rules_and_cancellation'] !== 'Consulte o anfitrião para confirmar as regras e as condições de cancelamento antes de pagar.') throw new RuntimeException('Snapshot não preservou a orientação de regras exibida quando o espaço não tem regras cadastradas.');
 echo count($cases)." testes de período/preço, ".count($overlaps)." testes de sobreposição e 1 teste de snapshot do aceite passaram.\n";
