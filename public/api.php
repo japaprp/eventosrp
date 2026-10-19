@@ -109,8 +109,26 @@ function paymentLifecycleReconcileExpiredHold(PDO $pdo, array $reservation): voi
   try{$preferenceDeadline=new DateTimeImmutable((string)$preference['expiration_date_to']);}catch(Throwable){return;}
   if($preferenceDeadline>$now)return;
   if(!paymentLifecycleCanReleaseHold('pending',(string)$fresh['hold_expires_at'],true,$payments,$now))return;
-  $q=$pdo->prepare("UPDATE reservations SET status='expired' WHERE id=? AND status='pending' AND payment_attention='none' AND hold_expires_at<=?");
-  $q->execute([$reservationId,$now->format('Y-m-d H:i:s')]);
+  // Serialize final expiry with webhook processing for this space, then re-read state under lock.
+  $pdo->beginTransaction();
+  try{
+   $spaceLock=$pdo->prepare('SELECT id FROM spaces WHERE id=? FOR UPDATE');
+   $spaceLock->execute([(int)$fresh['space_id']]);
+   $reservationLock=$pdo->prepare('SELECT * FROM reservations WHERE id=? FOR UPDATE');
+   $reservationLock->execute([$reservationId]);
+   $locked=$reservationLock->fetch(PDO::FETCH_ASSOC);
+   if(!$locked||$locked['status']!=='pending'||$locked['payment_attention']!=='none'||empty($locked['hold_expires_at'])){$pdo->commit();return;}
+   $lockedDeadline=new DateTimeImmutable((string)$locked['hold_expires_at'],new DateTimeZone('America/Sao_Paulo'));
+   if($lockedDeadline>$now){$pdo->commit();return;}
+   if(!empty($locked['payment_status'])&&!in_array($locked['payment_status'],['rejected','cancelled'],true)){$pdo->commit();return;}
+   $eventQuery=$pdo->prepare('SELECT provider_status AS status FROM reservation_payment_events WHERE reservation_id=?');
+   $eventQuery->execute([$reservationId]);
+   $recordedPayments=$eventQuery->fetchAll(PDO::FETCH_ASSOC);
+   if(!paymentLifecycleCanReleaseHold('pending',(string)$locked['hold_expires_at'],true,array_merge($payments,$recordedPayments),$now)){$pdo->commit();return;}
+   $q=$pdo->prepare("UPDATE reservations SET status='expired' WHERE id=? AND status='pending' AND payment_attention='none' AND hold_expires_at<=?");
+   $q->execute([$reservationId,$now->format('Y-m-d H:i:s')]);
+   $pdo->commit();
+  }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
  }catch(Throwable $e){error_log('Encontro payment reconciliation: '.get_class($e));}
 }
 function paymentLifecycleReconcileOverlappingHolds(PDO $pdo, int $spaceId, string $checkIn, string $blockedUntil): void {
