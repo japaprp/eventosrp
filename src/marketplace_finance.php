@@ -124,15 +124,37 @@ function marketplaceRecordLedgerEntry(PDO $pdo, array $entry): int {
     if ($rate !== null && (!is_int($rate) || $rate < 0 || $rate > 3000)) {
         throw new InvalidArgumentException('Taxa do ledger inválida.');
     }
-    if ($type === 'commission_accrual' && $commission < 0) {
-        throw new InvalidArgumentException('Acréscimo de comissão não pode ser negativo.');
+    $reversalTypes = ['refund_reversal','chargeback_reversal'];
+    if ($type === 'commission_accrual' && ($commission < 0 || $gross < 0)) {
+        throw new InvalidArgumentException('Acréscimo de comissão e valor bruto não podem ser negativos.');
     }
-    if (in_array($type, ['refund_reversal','chargeback_reversal'], true) && $commission > 0) {
-        throw new InvalidArgumentException('Estorno de comissão precisa ter valor negativo ou zero.');
+    if (in_array($type, $reversalTypes, true) && ($commission > 0 || $gross > 0)) {
+        throw new InvalidArgumentException('Estorno financeiro precisa ter comissão e valor bruto negativos ou zero.');
+    }
+    if ($type === 'manual_adjustment' && $commission === 0) {
+        throw new InvalidArgumentException('Ajuste manual precisa ter valor de comissão diferente de zero.');
     }
     $reverses = $entry['reverses_entry_id'] ?? null;
-    if ($reverses !== null && (!filter_var($reverses, FILTER_VALIDATE_INT) || $reverses < 1)) {
-        throw new InvalidArgumentException('Referência de estorno inválida.');
+    if (in_array($type, $reversalTypes, true) && $reverses === null) {
+        throw new InvalidArgumentException('Estorno precisa referenciar o lançamento original.');
+    }
+    if (!in_array($type, $reversalTypes, true) && $reverses !== null) {
+        throw new InvalidArgumentException('Somente um estorno pode referenciar o lançamento original.');
+    }
+    if ($reverses !== null) {
+        if (!filter_var($reverses, FILTER_VALIDATE_INT) || (int)$reverses < 1) {
+            throw new InvalidArgumentException('Referência de estorno inválida.');
+        }
+        $q = $pdo->prepare('SELECT reservation_id,owner_id,provider_payment_id,entry_type FROM marketplace_commission_ledger WHERE id=?');
+        $q->execute([(int)$reverses]);
+        $original = $q->fetch(PDO::FETCH_ASSOC);
+        if (!$original
+            || $original['reservation_id'] !== $reservationId
+            || (int)$original['owner_id'] !== (int)$ownerId
+            || $original['provider_payment_id'] !== $paymentId
+            || !in_array($original['entry_type'], ['commission_accrual','manual_adjustment'], true)) {
+            throw new InvalidArgumentException('O lançamento original do estorno não corresponde à reserva, anfitrião e pagamento.');
+        }
     }
     $metadata = $entry['metadata'] ?? null;
     if ($metadata !== null && !is_array($metadata)) throw new InvalidArgumentException('Metadados do ledger inválidos.');
