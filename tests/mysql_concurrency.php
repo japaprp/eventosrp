@@ -41,6 +41,7 @@ $pdo->exec("CREATE TABLE concurrency_test_reservations (
     CONSTRAINT fk_concurrency_test_space FOREIGN KEY (space_id) REFERENCES concurrency_test_spaces(id)
 ) ENGINE=InnoDB");
 $pdo->exec("INSERT INTO concurrency_test_spaces(id,name) VALUES (1,'Disposable test space')");
+unset($pdo); // Never let forked workers inherit the parent's live PDO socket.
 
 $rounds = 5;
 $successesTotal = 0;
@@ -52,7 +53,10 @@ if (!mkdir($tempDir, 0700) && !is_dir($tempDir)) {
 
 try {
     for ($round = 1; $round <= $rounds; $round++) {
+        $pdo = $connect();
         $pdo->exec('DELETE FROM concurrency_test_reservations');
+        unset($pdo); // Each process must use its own connection; parent reconnects after wait.
+
         $goFile = "{$tempDir}/go-{$round}";
         $readyFiles = ["{$tempDir}/ready-{$round}-0", "{$tempDir}/ready-{$round}-1"];
         $pids = [];
@@ -78,7 +82,6 @@ try {
                     // Same serialization strategy as the booking API: lock the parent space row.
                     $lock = $workerPdo->prepare('SELECT id FROM concurrency_test_spaces WHERE id=? FOR UPDATE');
                     $lock->execute([1]);
-                    // Keep the lock briefly so the second independent connection must wait.
                     usleep(150000);
 
                     $check = $workerPdo->prepare("SELECT id FROM concurrency_test_reservations
@@ -87,6 +90,7 @@ try {
                     $check->execute([1, '2026-11-15 18:00:00', '2026-11-15 10:00:00']);
                     if ($check->fetchColumn()) {
                         $workerPdo->rollBack();
+                        $workerPdo = null;
                         exit(10); // expected conflict / HTTP 409 equivalent
                     }
 
@@ -95,6 +99,7 @@ try {
                         (id,space_id,check_in,blocked_until,status) VALUES (?,?,?,?,'pending')");
                     $insert->execute([$id, 1, '2026-11-15 10:00:00', '2026-11-15 18:00:00']);
                     $workerPdo->commit();
+                    $workerPdo = null;
                     exit(0); // exactly one worker should succeed
                 } catch (Throwable $e) {
                     fwrite(STDERR, 'Worker error: ' . $e->getMessage() . "\n");
@@ -123,7 +128,9 @@ try {
             throw new RuntimeException("Round {$round}: expected one success and one conflict; got worker exit codes " . implode(',', $codes));
         }
 
+        $pdo = $connect();
         $count = (int) $pdo->query("SELECT COUNT(*) FROM concurrency_test_reservations WHERE status IN ('creating','pending','approved')")->fetchColumn();
+        unset($pdo);
         if ($count !== 1) {
             throw new RuntimeException("Round {$round}: expected exactly one active reservation; found {$count}.");
         }
@@ -137,8 +144,11 @@ try {
 
     echo "PASS: {$rounds} rounds; {$successesTotal} committed reservations and {$conflictsTotal} conflict rejections.\n";
 } finally {
-    $pdo->exec('DROP TABLE IF EXISTS concurrency_test_reservations');
-    $pdo->exec('DROP TABLE IF EXISTS concurrency_test_spaces');
+    // Cleanup uses a fresh connection because no connection should survive across fork().
+    $cleanup = $connect();
+    $cleanup->exec('DROP TABLE IF EXISTS concurrency_test_reservations');
+    $cleanup->exec('DROP TABLE IF EXISTS concurrency_test_spaces');
+    $cleanup = null;
     foreach (glob($tempDir . '/*') ?: [] as $file) {
         if (is_file($file)) unlink($file);
     }
