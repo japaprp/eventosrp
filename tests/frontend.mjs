@@ -18,7 +18,7 @@ vm.runInContext(source,context);
 vm.runInContext('render()',context);const cardCount=()=>((element('#cards').innerHTML.match(/class=\"card\"/g)||[]).length);assert.equal(cardCount(),8);
 element('#location').value='Ribeirão Preto';vm.runInContext('render()',context);assert.equal(cardCount(),2);
 element('#capacity').value='200';vm.runInContext('render()',context);assert.equal(cardCount(),1);
-vm.runInContext("type='Ao ar livre';render()",context);assert.equal(cardCount(),1);
+element('#capacity').value='0';vm.runInContext("type='Ao ar livre';render()",context);assert.equal(cardCount(),1);
 element('#location').value='Campinas';element('#capacity').value='0';element('#event').value='Corporativo';vm.runInContext("type='';render()",context);assert.equal(cardCount(),1);
 vm.runInContext('login()',context);assert.match(element('#modal-content').innerHTML,/autocomplete="name"/);assert.match(element('#modal-content').innerHTML,/id="signup-phone"/);
 element('#signup').onclick();assert.equal(element('#signup-name').required,true);assert.equal(element('#signup-name').disabled,false);assert.equal(element('#accept-account').required,true);assert.equal(element('#password').autocomplete,'new-password');
