@@ -27,6 +27,14 @@ $rounded = marketplaceCommissionQuote('19.99', 800);
 expectSame('1.60', $rounded['commission_amount'], 'Arredondamento para centavos');
 expectSame('18.39', $rounded['host_net_estimate'], 'Líquido sem tarifa');
 
+$now = new DateTimeImmutable('2026-10-19T12:00:00-03:00');
+$window = ['status'=>'active','payment_status'=>'approved','starts_at'=>'2026-10-19 10:00:00','ends_at'=>'2026-10-20 10:00:00'];
+expectSame(true,marketplacePromotionIsVisible($window,$now),'Promoção paga e dentro do prazo pode ser exibida');
+expectSame(false,marketplacePromotionIsVisible(array_merge($window,['payment_status'=>'pending']),$now),'Promoção não pode ser exibida antes da aprovação');
+expectSame(false,marketplacePromotionIsVisible(array_merge($window,['status'=>'draft']),$now),'Promoção em rascunho não pode ser exibida');
+expectSame(false,marketplacePromotionIsVisible($window,new DateTimeImmutable('2026-10-20T10:00:00-03:00')),'Promoção expira no instante final');
+expectSame(false,marketplacePromotionIsVisible(array_merge($window,['ends_at'=>'invalid']),$now),'Janela inválida não pode ser exibida');
+
 $promotion = marketplacePromotionQuote('15.00', 3);
 expectSame('45.00', $promotion['total_amount'], 'Preço da promoção');
 expectSame('Patrocinado', $promotion['sponsored_label'], 'Identificação de anúncio patrocinado');
