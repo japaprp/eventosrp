@@ -130,8 +130,7 @@ function marketplaceRecordLedgerEntry(PDO $pdo, array $entry): int {
         $q->execute($values);
         return (int)$pdo->lastInsertId();
     } catch (PDOException $e) {
-        if ($e->getCode() !== '23000') throw $e;
-        $q = $pdo->prepare('SELECT id,reservation_id,owner_id,provider_payment_id,provider_event_id,entry_type,gross_amount,commission_amount FROM marketplace_commission_ledger WHERE idempotency_key=?');
+        $q = $pdo->prepare('SELECT id,reservation_id,owner_id,provider_payment_id,provider_event_id,entry_type,gross_amount,provider_fee_amount,commission_rate_bps,commission_amount,host_net_estimate FROM marketplace_commission_ledger WHERE idempotency_key=?');
         $q->execute([$key]);
         $existing = $q->fetch(PDO::FETCH_ASSOC);
         if (!$existing) throw $e;
