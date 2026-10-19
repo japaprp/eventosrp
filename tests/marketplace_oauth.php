@@ -59,6 +59,7 @@ if (strlen($consumed['code_verifier']) < 43) throw new RuntimeException('Verifie
 assertOAuthInvalid(fn() => marketplaceConsumeOAuthState($pdo,$state),'State consumido não pode ser reutilizado');
 assertOAuthInvalid(fn() => marketplaceConsumeOAuthState($pdo,str_repeat('0',64)),'State desconhecido deve falhar');
 $expiredState = bin2hex(random_bytes(32));
+$stateVerifier = marketplaceBase64Url(random_bytes(48));
 $q = $pdo->prepare('INSERT INTO marketplace_oauth_states(state_hash,owner_id,code_verifier_encrypted,expires_at) VALUES (?,?,?,?)');
 $q->execute([hash('sha256',$expiredState),43,marketplaceEncryptSecret($stateVerifier,$master),(new DateTimeImmutable('-1 minute', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s')]);
 assertOAuthInvalid(fn() => marketplaceConsumeOAuthState($pdo,$expiredState),'State expirado deve falhar');
