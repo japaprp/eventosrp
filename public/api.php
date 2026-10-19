@@ -16,7 +16,7 @@ function paymentLifecycleRecordEvent(PDO $pdo, string $reservationId, array $pay
  if($paymentId===''||$status==='')throw new InvalidArgumentException('Evento de pagamento incompleto.');
  $now=(new DateTimeImmutable('now',new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
  $detail=isset($payment['status_detail'])?substr((string)$payment['status_detail'],0,100):null;
- $q=$pdo->prepare('INSERT INTO reservation_payment_events(reservation_id,payment_id,provider_status,status_detail,amount,currency,event_count,first_seen_at,last_seen_at) VALUES (?,?,?,?,?,?,1,?,?) ON DUPLICATE KEY UPDATE provider_status=VALUES(provider_status),status_detail=VALUES(status_detail),amount=VALUES(amount),currency=VALUES(currency),event_count=event_count+1,last_seen_at=VALUES(last_seen_at)');
+ $q=$pdo->prepare('INSERT INTO reservation_payment_events(reservation_id,payment_id,provider_status,status_detail,amount,currency,event_count,first_seen_at,last_seen_at) VALUES (?,?,?,?,?,?,1,?,?) ON DUPLICATE KEY UPDATE provider_status=IF(provider_status IN ('approved','refunded','charged_back') AND VALUES(provider_status) IN ('pending','in_process','rejected','cancelled'),provider_status,VALUES(provider_status)),status_detail=IF(provider_status IN ('approved','refunded','charged_back') AND VALUES(provider_status) IN ('pending','in_process','rejected','cancelled'),status_detail,VALUES(status_detail)),amount=VALUES(amount),currency=VALUES(currency),event_count=event_count+1,last_seen_at=VALUES(last_seen_at)');
  $q->execute([$reservationId,$paymentId,$status,$detail,number_format((float)($payment['transaction_amount']??0),2,'.',''),(string)($payment['currency_id']??''),$now,$now]);
 }
 function paymentLifecycleApplyVerifiedPayment(PDO $pdo, string $reservationId, array $payment): void {
@@ -30,6 +30,12 @@ function paymentLifecycleApplyVerifiedPayment(PDO $pdo, string $reservationId, a
   $q=$pdo->prepare('SELECT * FROM reservations WHERE id=? FOR UPDATE');$q->execute([$reservationId]);$reservation=$q->fetch(PDO::FETCH_ASSOC);
   if(!$reservation){$pdo->commit();return;}
   if(($payment['currency_id']??'')!=='BRL'||abs((float)($payment['transaction_amount']??-1)-(float)$reservation['total'])>0.001)throw new InvalidArgumentException('Valor ou moeda do pagamento inconsistente.');
+  $existingId=isset($reservation['payment_id'])?(string)$reservation['payment_id']:null;
+  if($existingId===$paymentId && paymentLifecycleIsStaleStatus(isset($reservation['payment_status'])?(string)$reservation['payment_status']:null,$status)){
+   paymentLifecycleRecordEvent($pdo,$reservationId,$payment);
+   $pdo->commit();
+   return;
+  }
   paymentLifecycleRecordEvent($pdo,$reservationId,$payment);
   $existingId=isset($reservation['payment_id'])?(string)$reservation['payment_id']:null;
   $conflict=false;
