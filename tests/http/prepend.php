@@ -4,9 +4,17 @@ declare(strict_types=1);
 // Loaded only by the dedicated local PHP development server in CI.
 if (PHP_SAPI === 'cli-server' && getenv('EVENTOSRP_HTTP_TEST') === '1') {
     $databaseName = getenv('DB_NAME') ?: '';
-    if (!str_ends_with($databaseName, '_test')) {
+    $databaseHost = getenv('DB_HOST') ?: '';
+    $databasePort = getenv('DB_PORT') ?: '';
+    $appUrl = getenv('APP_URL') ?: '';
+    if (
+        $databaseName !== 'eventosrp_http_test'
+        || !in_array($databaseHost, ['127.0.0.1', 'localhost', '::1'], true)
+        || $databasePort !== '3306'
+        || $appUrl !== 'https://eventosrp-test.invalid'
+    ) {
         http_response_code(503);
-        exit('Isolated HTTP test mode requires a database ending in _test.');
+        exit('Isolated HTTP test mode requires the exact disposable database and test-only application URL.');
     }
     define('EVENTOSRP_HTTP_TEST', true);
 }
