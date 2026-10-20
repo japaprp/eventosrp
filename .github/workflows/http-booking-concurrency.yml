@@ -92,3 +92,28 @@ jobs:
             cat /tmp/eventosrp-http-test-server.log
             exit 1
           fi
+      - name: Verify unsafe test configuration fails closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          env DB_NAME=not_the_disposable_database php -d auto_prepend_file="$GITHUB_WORKSPACE/tests/http/prepend.php" -S 127.0.0.1:8089 -t public > /tmp/eventosrp-http-guard-server.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            pkill -f '[p]hp -S 127.0.0.1:8089' 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          status=""
+          for attempt in $(seq 1 60); do
+            status=$(curl --silent --output /tmp/eventosrp-http-guard-body.txt --write-out '%{http_code}' --max-time 1 http://127.0.0.1:8089/api.php?action=spaces || true)
+            if [ "$status" = "503" ]; then
+              break
+            fi
+            sleep 0.25
+          done
+          if [ "$status" != "503" ] || ! grep -q "Isolated HTTP test mode requires the exact disposable database" /tmp/eventosrp-http-guard-body.txt; then
+            cat /tmp/eventosrp-http-guard-server.log
+            echo "Unsafe HTTP test configuration was not rejected with HTTP 503." >&2
+            exit 1
+          fi
+          echo "PASS: test mode rejects a non-disposable database configuration with HTTP 503."
