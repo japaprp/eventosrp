@@ -35,6 +35,38 @@ foreach ($monotonicCases as [$reservationStatus,$existingPaymentStatus,$incoming
     $actual = paymentLifecycleShouldPreserveApprovedStatus($reservationStatus,$existingPaymentStatus,$incomingPaymentStatus);
     if ($actual !== $expected) throw new RuntimeException('Uma atualização fora de ordem alterou indevidamente o estado financeiro.');
 }
+
+$auditCases = [
+    ['approved', 'pending', 'approved'],
+    ['approved', 'rejected', 'approved'],
+    ['approved', 'refunded', 'refunded'],
+    ['approved', 'charged_back', 'charged_back'],
+    ['refunded', 'pending', 'refunded'],
+    ['refunded', 'charged_back', 'charged_back'],
+    ['charged_back', 'refunded', 'charged_back'],
+    ['pending', 'approved', 'approved'],
+    ['rejected', 'pending', 'pending'],
+];
+foreach ($auditCases as [$current, $incoming, $expected]) {
+    $actual = paymentLifecycleAuditStatus($current, $incoming);
+    if ($actual !== $expected) {
+        throw new RuntimeException("Agregado de auditoria regrediu: {$current} + {$incoming}; esperado {$expected}, recebido {$actual}");
+    }
+}
+
+// A reservation approved for pay-1 remains approved for stale pending/rejected
+// events; explicit refund/chargeback updates the payment state for review.
+foreach (['pending', 'rejected'] as $lateStatus) {
+    if (!paymentLifecycleShouldPreserveApprovedStatus('approved', 'approved', $lateStatus)) {
+        throw new RuntimeException('Evento atrasado rebaixaria a reserva aprovada.');
+    }
+}
+foreach (['refunded', 'charged_back'] as $financialOutcome) {
+    if (paymentLifecycleShouldPreserveApprovedStatus('approved', 'approved', $financialOutcome)) {
+        throw new RuntimeException('Resultado financeiro explícito foi indevidamente ignorado.');
+    }
+}
+
 $now = new DateTimeImmutable('2026-10-19T12:00:00-03:00');
 $expiredHold = '2026-10-19 11:00:00';
 $futureHold = '2026-10-19 13:00:00';
