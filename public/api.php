@@ -82,18 +82,9 @@ function paymentLifecycleApplyVerifiedPayment(PDO $pdo, string $reservationId, a
 function paymentLifecycleReconcileExpiredHold(PDO $pdo, array $reservation): void {
  $reservationId=(string)($reservation['id']??'');
  if($reservationId==='')return;
- // A MySQL advisory lock serializes all callers for this reservation without
- // holding row locks during Mercado Pago network requests.
- $lockName='eventosrp_reconcile_'.substr(hash('sha256',$reservationId),0,40);
- $lockQuery=$pdo->prepare('SELECT GET_LOCK(?, 0)');
- $lockQuery->execute([$lockName]);
- if((int)$lockQuery->fetchColumn()!==1)return;
- try{
+ paymentLifecycleWithAdvisoryLock($pdo,$reservationId,function()use($pdo,$reservation):void{
   paymentLifecycleReconcileExpiredHoldUnlocked($pdo,$reservation);
- }finally{
-  $unlock=$pdo->prepare('SELECT RELEASE_LOCK(?)');
-  $unlock->execute([$lockName]);
- }
+ });
 }
 
 function paymentLifecycleReconcileExpiredHoldUnlocked(PDO $pdo, array $reservation): void {
