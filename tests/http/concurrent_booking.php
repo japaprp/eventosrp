@@ -109,13 +109,13 @@ $all = (int) $pdo->query('SELECT COUNT(*) FROM reservations')->fetchColumn();
 $active = (int) $pdo->query("SELECT COUNT(*) FROM reservations WHERE status IN ('creating','pending','approved')")->fetchColumn();
 $failed = (int) $pdo->query("SELECT COUNT(*) FROM reservations WHERE status='failed'")->fetchColumn();
 $events = (int) $pdo->query('SELECT COUNT(*) FROM reservation_payment_events')->fetchColumn();
-$q = $pdo->prepare('SELECT status,preference_id,hold_expires_at,total FROM reservations WHERE id=?');
+$q = $pdo->prepare('SELECT status,preference_id,hold_expires_at,total,payment_status,payment_attention FROM reservations WHERE id=?');
 $q->execute([$created]);
 $row = $q->fetch(PDO::FETCH_ASSOC);
 if ($all !== 1 || $active !== 1 || $failed !== 0 || $events !== 0) {
     failTest("Unexpected persisted rows: all={$all}, active={$active}, failed={$failed}, payment_events={$events}.");
 }
-if (!$row || $row['status'] !== 'pending' || !$row['preference_id'] || !$row['hold_expires_at'] || (float) $row['total'] <= 0) {
+if (!$row || $row['status'] !== 'pending' || !$row['preference_id'] || !$row['hold_expires_at'] || (float) $row['total'] <= 0 || $row['payment_status'] !== null || $row['payment_attention'] !== 'none') {
     failTest('Successful reservation is incomplete or remains in an unexpected state: ' . json_encode($row));
 }
 $uid = $pdo->query("SELECT COUNT(*) FROM users WHERE firebase_uid='eventosrp-http-test-user'")->fetchColumn();
