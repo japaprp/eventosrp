@@ -1,0 +1,119 @@
+name: Isolated HTTP booking concurrency
+
+on:
+  pull_request:
+    paths:
+      - 'src/bootstrap.php'
+      - 'public/api.php'
+      - 'src/booking.php'
+      - 'src/payment_lifecycle.php'
+      - 'src/spaces.php'
+      - 'database/schema.sql'
+      - 'tests/http/**'
+      - '.github/workflows/http-booking-concurrency.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  http-booking-concurrency:
+    name: Concurrent reservations through the real HTTP endpoint
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: eventosrp_http_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: eventosrp_http_test
+      DB_USER: root
+      DB_PASSWORD: root
+      EVENTOSRP_HTTP_TEST: '1'
+      HTTP_TEST_BASE_URL: http://127.0.0.1:8088
+      APP_URL: https://eventosrp-test.invalid
+      MP_ACCESS_TOKEN: isolated-test-token
+      MP_WEBHOOK_SECRET: isolated-test-webhook-secret
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: curl, mbstring, pdo_mysql
+          coverage: none
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist
+      - name: Create isolated database schema
+        run: |
+          sed '1,2d' database/schema.sql | mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -proot eventosrp_http_test
+      - name: Lint HTTP test harness and endpoint dependencies
+        run: |
+          php -l src/bootstrap.php
+          php -l tests/http/prepend.php
+          php -l tests/http/concurrent_booking.php
+          php -l public/api.php
+      - name: Run real HTTP concurrency test with isolated adapters
+        shell: bash
+        run: |
+          set -euo pipefail
+          PHP_CLI_SERVER_WORKERS=4 php -d auto_prepend_file="$GITHUB_WORKSPACE/tests/http/prepend.php" -S 127.0.0.1:8088 -t public > /tmp/eventosrp-http-test-server.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            pkill -f '[p]hp -S 127.0.0.1:8088' 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --output /dev/null --max-time 1 "$HTTP_TEST_BASE_URL/api.php?action=spaces"; then
+              ready=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/eventosrp-http-test-server.log
+            echo "PHP HTTP test server did not start." >&2
+            exit 1
+          fi
+          if ! php tests/http/concurrent_booking.php; then
+            cat /tmp/eventosrp-http-test-server.log
+            exit 1
+          fi
+      - name: Verify unsafe test configuration fails closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          env DB_NAME=not_the_disposable_database php -d auto_prepend_file="$GITHUB_WORKSPACE/tests/http/prepend.php" -S 127.0.0.1:8089 -t public > /tmp/eventosrp-http-guard-server.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            pkill -f '[p]hp -S 127.0.0.1:8089' 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          status=""
+          for attempt in $(seq 1 60); do
+            status=$(curl --silent --output /tmp/eventosrp-http-guard-body.txt --write-out '%{http_code}' --max-time 1 http://127.0.0.1:8089/api.php?action=spaces || true)
+            if [ "$status" = "503" ]; then
+              break
+            fi
+            sleep 0.25
+          done
+          if [ "$status" != "503" ] || ! grep -q "Isolated HTTP test mode requires the exact disposable database" /tmp/eventosrp-http-guard-body.txt; then
+            cat /tmp/eventosrp-http-guard-server.log
+            echo "Unsafe HTTP test configuration was not rejected with HTTP 503." >&2
+            exit 1
+          fi
+          echo "PASS: test mode rejects a non-disposable database configuration with HTTP 503."
