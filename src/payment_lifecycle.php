@@ -60,3 +60,22 @@ function paymentLifecycleCanReleaseHold(
     }
     return true;
 }
+
+/**
+ * Run one reservation reconciliation under a connection-scoped MySQL advisory lock.
+ * Returns false when another worker already owns the lock.
+ */
+function paymentLifecycleWithAdvisoryLock(PDO $pdo, string $reservationId, callable $operation): bool {
+    if ($reservationId === '') return false;
+    $lockName = 'eventosrp_reconcile_' . substr(hash('sha256', $reservationId), 0, 40);
+    $lockQuery = $pdo->prepare('SELECT GET_LOCK(?, 0)');
+    $lockQuery->execute([$lockName]);
+    if ((int) $lockQuery->fetchColumn() !== 1) return false;
+    try {
+        $operation();
+        return true;
+    } finally {
+        $unlock = $pdo->prepare('SELECT RELEASE_LOCK(?)');
+        $unlock->execute([$lockName]);
+    }
+}
