@@ -74,3 +74,15 @@ function paymentLifecycleShouldPreserveApprovedStatus(
         && $existingPaymentStatus === 'approved'
         && !in_array($incomingPaymentStatus, ['refunded', 'charged_back'], true);
 }
+
+
+/**
+ * Keep the audit aggregate monotonic for delayed/out-of-order provider updates.
+ * Refund/chargeback are financial outcomes; chargeback is retained over refund.
+ */
+function paymentLifecycleAuditStatus(string $currentStatus, string $incomingStatus): string {
+    if ($currentStatus === 'charged_back' || $incomingStatus === 'charged_back') return 'charged_back';
+    if ($currentStatus === 'refunded' || $incomingStatus === 'refunded') return 'refunded';
+    if ($currentStatus === 'approved' || $incomingStatus === 'approved') return 'approved';
+    return $incomingStatus;
+}
