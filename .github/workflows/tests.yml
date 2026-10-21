@@ -43,3 +43,37 @@ jobs:
           node-version: '20'
       - name: Test frontend
         run: node tests/frontend.mjs
+
+  payment-lifecycle-mysql:
+    name: MySQL payment lifecycle and audit integration
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: eventosrp_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql
+          coverage: none
+      - name: Test reservation and payment audit transitions in MySQL
+        env:
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_PORT: 3306
+          MYSQL_DATABASE: eventosrp_test
+          MYSQL_USER: root
+          MYSQL_PASSWORD: root
+        run: php tests/payment_lifecycle_mysql.php
