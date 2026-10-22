@@ -28,4 +28,21 @@ $secondAcquire->execute([$lockName]);
 if ((int)$secondAcquire->fetchColumn() !== 1) throw new RuntimeException('Reconciler failed to release its lock after execution.');
 $release->execute([$lockName]);
 
-echo "MySQL reconciliation lock integration passed: overlapping worker skipped, then lock released and retried.\n";
+// The finally block must release the advisory lock even when reconciliation fails.
+$thrown = false;
+try {
+    paymentLifecycleWithAdvisoryLock($pdoA, $reservationId, function (): void {
+        throw new RuntimeException('intentional reconciliation failure');
+    });
+} catch (RuntimeException $e) {
+    if ($e->getMessage() !== 'intentional reconciliation failure') throw $e;
+    $thrown = true;
+}
+if (!$thrown) throw new RuntimeException('Expected reconciliation callback failure was not propagated.');
+
+$afterFailure = $pdoB->prepare('SELECT GET_LOCK(?, 0)');
+$afterFailure->execute([$lockName]);
+if ((int)$afterFailure->fetchColumn() !== 1) throw new RuntimeException('Reconciler did not release its lock after an exception.');
+$release->execute([$lockName]);
+
+echo "MySQL reconciliation lock integration passed: overlap skipped, retry succeeded, and lock released after callback failure.\n";
