@@ -9,7 +9,7 @@ require dirname(__DIR__).'/src/spaces.php';
 date_default_timezone_set('America/Sao_Paulo');
 try {
  $action=$_GET['action']??'';$method=$_SERVER['REQUEST_METHOD'];
- if($action==='spaces'&&$method==='GET'){$rows=database()->query('SELECT * FROM spaces WHERE active=1 ORDER BY id DESC')->fetchAll(PDO::FETCH_ASSOC);respond(array_map('publicSpace',$rows));}
+ if($action==='spaces'&&$method==='GET'){$rows=database()->query('SELECT * FROM spaces WHERE active=1 AND is_demo=0 ORDER BY id DESC')->fetchAll(PDO::FETCH_ASSOC);respond(array_map('publicSpace',$rows));}
  if($action==='webhook') {
   if($method!=='POST')respond(['error'=>'Método não permitido.'],405);
   parse_str($_SERVER['QUERY_STRING']??'',$query);$id=(string)($query['data_id']??'');
@@ -64,7 +64,7 @@ try {
  $message=$input['message']??'';
  if(!$guests||$guests<1||!$spaceId||!is_string($message)||!trim($message)||mb_strlen($message)>2000)respond(['error'=>'Confira os dados do evento.'],422);
  $pdo->beginTransaction();$q=$pdo->prepare('SELECT * FROM spaces WHERE id=? FOR UPDATE');$q->execute([$spaceId]);$space=$q->fetch(PDO::FETCH_ASSOC);
- if(!$space||!$space['active']||$guests>$space['capacity']){$pdo->rollBack();respond(['error'=>'Espaço indisponível ou capacidade inválida.'],422);}
+ if(!$space||!$space['active']||!empty($space['is_demo'])||$guests>$space['capacity']{$pdo->rollBack();respond(['error'=>'Espaço indisponível ou capacidade inválida.'],422);}
  $plan=$input['plan']??'daily';
  try{$quote=bookingQuote($input['check_in']??null,$input['check_out']??null,$plan,(string)$space['daily_price'],$space['weekend_price']===null?null:(string)$space['weekend_price']);enforceSpaceSchedule($space,$quote);}
  catch(InvalidArgumentException $e){$pdo->rollBack();respond(['error'=>$e->getMessage()],422);}
