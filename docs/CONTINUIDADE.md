@@ -85,8 +85,3 @@ Publicar a branch ou a PR no GitHub disponibiliza o código para revisão; não 
 - A API pública e a disponibilidade ignoram anúncios com `is_demo=1`, e a criação de reserva rejeita demonstrações no servidor. Os exemplos permanecem apenas na prévia; no site conectado, o catálogo inicia vazio até carregar anúncios reais.
 - Produção ainda depende de verificar banco e aplicar migração com backup, configurar armazenamento durável para fotos e confirmar credenciais do Mercado Pago em modo de produção. Os anúncios existentes são todos demonstrativos; os anfitriões precisam cadastrar espaços e fotos reais autorizados.
 - O teste `node tests/frontend.mjs` passou com 18 cenários, incluindo catálogo sem demos. `git diff --check` passou. Testes PHP/MySQL não foram executados: PHP e Composer não estão instalados neste ambiente.
-
-
-## Proteção de anúncios demonstrativos em produção — 21/10/2026
-
-A API pública lista somente espaços ativos com `is_demo=0`, e a criação de reserva recusa espaços demonstrativos no servidor. O catálogo informa quando não há anúncios publicados. Esta correção não exige migração e evita que os oito registros atuais, todos demonstrativos, sejam apresentados como ofertas reais. O site precisa de anfitriões cadastrando espaços, fotos e descrições reais autorizadas antes de abrir reservas reais.
