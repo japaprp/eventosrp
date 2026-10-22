@@ -20,10 +20,12 @@ const photo = (s,w=800) => {
 };
 spaces.forEach(s=>Object.assign(s,{isDemo:true,checkInTime:'09:00',checkOutTime:'09:00',minimumDays:1,cleanupMinutes:0,photos:[],amenities:[],rules:''}));
 let profile={name:'',phone:''};
-let type='', user=null, auth=null, db=null, sdk=null, unsubscribeChat=null, config={}, availability=null, firebaseStatus='loading';
+let type='', user=null, auth=null, db=null, sdk=null, unsubscribeChat=null, config={}, availability=null, firebaseStatus='loading',firebaseFailureDetail='';
 let compared=[];let availabilityRequest=0;
 let favorites;try{favorites=JSON.parse(localStorage.getItem('encontro-favorites')||'[]')}catch{favorites=[]}if(!Array.isArray(favorites))favorites=[];
 function toast(message){$('#toast').textContent=message;$('#toast').style.display='block';setTimeout(()=>$('#toast').style.display='none',3500)}
+function firebaseUnavailableMessage(){if(firebaseStatus==='loading')return 'Conectando ao Firebase. Aguarde alguns segundos e tente novamente.';if(firebaseStatus==='missing')return 'Firebase ainda não configurado.';return 'Não foi possível carregar o Firebase. Diagnóstico: '+(firebaseFailureDetail||'erro sem detalhes')+'.'}
+function firebaseErrorDetail(error){const parts=[];if(typeof error?.code==='string')parts.push(error.code);else if(typeof error?.name==='string')parts.push(error.name);if(typeof error?.message==='string')parts.push(error.message);return parts.join(': ').replace(/AIza[0-9A-Za-z_-]{20,}/g,'[chave oculta]').slice(0,220)||'erro sem detalhes'}
 function setAuthenticatedUser(nextUser){user=nextUser;const button=$('#login-button');if(!button)return;button.textContent=user?'Minha conta ✓':'Entrar ↗';button.classList.toggle('is-authenticated',Boolean(user));button.setAttribute('aria-label',user?'Minha conta, sessão conectada':'Entrar na sua conta');button.title=user?'Sua sessão está ativa':''}
 function hasSearchRange(){return Boolean($('#check-in-date').value&&$('#check-out-date').value)}
 function searchQuotePrice(space){return Number(availability?.quotes?.[space.id]?.total??($('#search-plan').value==='weekend'?(space.weekendPrice??space.price*2):space.price))}
@@ -127,7 +129,8 @@ function login(after) {
       <div class="form-error" role="alert"></div><button class="primary" type="submit" id="auth-submit">Entrar</button>
       <button type="button" class="login" id="signup">Criar minha conta</button>
       <button type="button" class="detail-button" id="reset">Esqueci minha senha</button>
-    </form><p class="notice">Use a mesma conta para reservar espaços e acessar a Área do anfitrião. As fotos dos espaços são adicionadas apenas no cadastro de anfitrião; quem reserva pode manter uma foto de perfil.</p>${firebaseStatus==='loading'?'<p class="notice">Conectando ao Firebase…</p>':firebaseStatus==='missing'?'<p class="notice">Firebase ainda não configurado. O catálogo pode ser explorado livremente.</p>':firebaseStatus==='error'?'<p class="notice">Não foi possível carregar o Firebase. Recarregue a página e tente novamente.</p>':''}`);
+      <button type="button" class="login" id="google-signin">Entrar com Google</button>
+    </form><p id="firebase-status" class="notice" ${firebaseStatus==='ready'?'hidden':''}>${escapeHtml(firebaseUnavailableMessage())}</p><p class="notice">Use a mesma conta para reservar espaços e acessar a Área do anfitrião. As fotos dos espaços são adicionadas apenas no cadastro de anfitrião; quem reserva pode manter uma foto de perfil.</p>`);
   let creating=false;
   $('#signup').onclick=()=>{
     creating=!creating;$('#signup-fields').hidden=!creating;$('#signup-consent').hidden=!creating;
@@ -140,10 +143,10 @@ function login(after) {
   };
   $('#auth-form').onsubmit=async e=>{
     e.preventDefault();const error=$('.form-error'),button=$('#auth-submit');
-    if(!auth){error.textContent=firebaseStatus==='loading'?'Conectando ao Firebase. Aguarde alguns segundos e tente novamente.':firebaseStatus==='missing'?'Firebase ainda não configurado.':'Não foi possível carregar o Firebase. Recarregue a página e tente novamente.';return}
+    if(!auth){error.textContent=firebaseUnavailableMessage();return}
     const name=creating?$('#signup-name').value.trim():'',phone=creating?$('#signup-phone').value.trim():'';
     if(creating&&(name.length<2||!validPhone(phone))){error.textContent='Informe seu nome e um celular válido com DDD.';return}
-    button.disabled=true;$('#signup').disabled=true;
+    button.disabled=true;$('#signup').disabled=true;$('#google-signin').disabled=true;
     try{
       const result=await (creating?sdk.createUserWithEmailAndPassword:sdk.signInWithEmailAndPassword)(auth,$('#email').value.trim(),$('#password').value);setAuthenticatedUser(result.user);
       if(creating){
@@ -154,8 +157,15 @@ function login(after) {
       $('#modal').close();toast(creating?'Conta criada. Vamos planejar seu evento!':'Você entrou na sua conta.');after?.();
     }catch(e){
       const messages={'auth/email-already-in-use':'Este e-mail já tem uma conta. Use Entrar ou recupere a senha.','auth/weak-password':'Escolha uma senha mais forte.','auth/invalid-email':'Confira o endereço de e-mail.','auth/too-many-requests':'Muitas tentativas. Aguarde e tente novamente.'};
-      error.textContent=messages[e.code]||'Não foi possível acessar. Verifique os dados ou tente novamente.';button.disabled=false;$('#signup').disabled=false;
+      error.textContent=messages[e.code]||'Não foi possível acessar. Verifique os dados ou tente novamente.';button.disabled=false;$('#signup').disabled=false;$('#google-signin').disabled=false;
     }
+  };
+  $('#google-signin').onclick=async()=>{
+    const error=$('.form-error'),button=$('#google-signin');
+    if(!auth){error.textContent=firebaseUnavailableMessage();return}
+    button.disabled=true;
+    try{const provider=new sdk.GoogleAuthProvider(),result=await sdk.signInWithPopup(auth,provider);setAuthenticatedUser(result.user);profile={name:result.user.displayName||'',phone:''};try{await api('profile',{method:'POST',body:JSON.stringify(profile)})}catch{toast('Conectado via Google. Complete seus dados de contato na reserva.')}$('#modal').close();toast('Bem-vindo '+(result.user.displayName||'')+'!');after?.()}
+    catch(e){const messages={'auth/popup-closed-by-user':'A janela de login foi fechada antes de concluir.','auth/popup-blocked':'O navegador bloqueou a janela do Google. Permita pop-ups para este site e tente novamente.','auth/account-exists-with-different-credential':'Este e-mail já está cadastrado com outro método de login.','auth/unauthorized-domain':'Este domínio não está autorizado no Firebase Authentication.','auth/operation-not-allowed':'O provedor Google está desativado no Firebase Authentication.','auth/network-request-failed':'Falha de rede ao falar com o Firebase. Verifique a conexão e tente novamente.'};error.textContent=messages[e.code]||'Falha ao entrar com Google ('+firebaseErrorDetail(e)+').';button.disabled=false}
   };
   $('#reset').onclick=()=>passwordReset($('#email').value.trim());
 }
@@ -273,7 +283,7 @@ function passwordReset(email='') {
   modal(`<h2>Recuperar minha senha.</h2><p>Informe o e-mail do cadastro para receber um link de recuperação.</p><form class="form" id="reset-form"><label>E-mail<input type="email" id="reset-email" autocomplete="email" required></label><div class="form-error" role="alert"></div><button class="primary" id="send-reset">Enviar link de recuperação</button><button type="button" class="login" id="back-login">Voltar ao login</button></form>`);
   $('#reset-email').value=email;$('#back-login').onclick=()=>login();
   $('#reset-form').onsubmit=async e=>{
-    e.preventDefault();if(!auth){$('.form-error').textContent=firebaseStatus==='loading'?'Conectando ao Firebase. Aguarde alguns segundos e tente novamente.':firebaseStatus==='missing'?'Firebase ainda não configurado.':'Não foi possível carregar o Firebase. Recarregue a página e tente novamente.';return}
+    e.preventDefault();if(!auth){$('.form-error').textContent=firebaseUnavailableMessage();return}
     const button=$('#send-reset');button.disabled=true;
     try{await sdk.sendPasswordResetEmail(auth,$('#reset-email').value.trim());$('#modal').close();toast('Se houver uma conta com esse e-mail, enviaremos o link de recuperação.')}
     catch{$('.form-error').textContent='Não foi possível enviar o link. Confira o e-mail e tente novamente.';button.disabled=false}
@@ -430,7 +440,9 @@ if(!staticPreview){
     }else firebaseStatus='missing';
   }catch(error){
     firebaseStatus='error';
+    firebaseFailureDetail=firebaseErrorDetail(error);
     console.error('Falha ao inicializar Firebase Authentication.',error);
+    const notice=$('#firebase-status');if(notice){notice.hidden=false;notice.textContent=firebaseUnavailableMessage()}
   }
 }
 

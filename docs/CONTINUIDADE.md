@@ -76,9 +76,11 @@ Publicar a branch ou a PR no GitHub disponibiliza o código para revisão; não 
 - [Regras do Realtime Database](https://firebase.google.com/docs/database/security/rules-conditions)
 
 
-## Conta, galeria e reserva ? 21/10/2026
+## Conta, galeria e reserva — 21/10/2026
 
-- A conta exibe os dados de perfil, reservas e espa?os anunciados; o bot?o para reservar abre o fluxo de login e continua para a reserva ap?s autenticar.
-- O cat?logo apresenta descri??es e abre a galeria do an?ncio. An?ncios legados usam a lista de fotos como fallback quando n?o h? detalhes de capa.
-- A autentica??o do Firebase inicializa separada do Realtime Database, que ? opcional para login/reserva e usado pelo chat.
-- A vers?o permanece nesta PR. O servi?o Render acompanha `main`; antes de mesclar e implantar, a migra??o 004 precisa ser aplicada com backup conforme os procedimentos do projeto. Nenhum teste foi executado nesta atualiza??o.
+- A conta exibe dados do perfil, reservas e espaços anunciados; o botão para reservar inicia o login e continua para a reserva após autenticar.
+- O catálogo apresenta descrições e abre a galeria do anúncio. Anúncios legados usam a lista de fotos como fallback quando não há detalhes de capa.
+- O login por e-mail e Google compartilha o fluxo de autenticação. O Firebase Authentication inicializa separado do Realtime Database, opcional para login/reserva e usado pelo chat.
+- A integração foi reconciliada com a versão atual de `main` e as mudanças estão na PR #1. O Render acompanha `main`; migração 004 e verificações de configuração operacional precisam ocorrer antes de anunciar reservas e pagamentos reais.
+- Produção ainda depende de verificar banco e aplicar migração com backup, configurar armazenamento durável para fotos e confirmar credenciais do Mercado Pago em modo de produção. Os anúncios atuais são demonstrativos e precisam ser substituídos por espaços reais autorizados pelos anfitriões.
+- Não foram executados testes automatizados nesta etapa.

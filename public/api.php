@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 declare(strict_types=1);
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');header('X-Content-Type-Options: nosniff');
 if(!is_file(dirname(__DIR__).'/vendor/autoload.php'))respondUnavailable();
@@ -138,4 +138,4 @@ try {
  respond(['reservation_id'=>$e->reservationId,'error'=>$e->needsReconciliation
   ?'Não foi possível abrir o pagamento. Esta solicitação está retida para conferência. Consulte suas reservas ou o atendimento antes de tentar novamente.'
   :'Não foi possível preparar a reserva para pagamento. Tente novamente mais tarde.'],503);
-}catch(JsonException $e){respond(['error'=>'Dados inválidos.'],400);}catch(Throwable $e){if(isset($pdo)&&$pdo->inTransaction())$pdo->rollBack();error_log('Encontro API: '.get_class($e));respond(['error'=>'Serviço temporariamente indisponível. Verifique a configuração ou tente novamente.'],503);}
+}catch(JsonException $e){respond(['error'=>'Dados inválidos.'],400);}catch(PDOException $e){if(isset($pdo)&&$pdo->inTransaction())$pdo->rollBack();$info=$e->errorInfo;$driverCode=is_array($info)&&isset($info[1])?(string)$info[1]:'n/a';$message=preg_replace('/((?:password|passwd|pwd)\s*[=:]\s*)[^;\s]*/i','$1[redacted]',$e->getMessage())??'diagnostic unavailable';error_log('Encontro API: PDOException SQLSTATE='.$e->getCode().' driver='.$driverCode.' message='.$message);respond(['error'=>'Serviço temporariamente indisponível. Verifique a configuração ou tente novamente.'],503);}catch(Throwable $e){if(isset($pdo)&&$pdo->inTransaction())$pdo->rollBack();error_log('Encontro API: '.get_class($e));respond(['error'=>'Serviço temporariamente indisponível. Verifique a configuração ou tente novamente.'],503);}
