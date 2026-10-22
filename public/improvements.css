@@ -1,3 +1,100 @@
+#preview-notice {
+  margin: 0 auto;
+  max-width: 1320px;
+  padding: 14px 24px;
+  background: #edf2e7;
+  color: #254e40;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* Keep venue photography prominent without letting it dominate the page. */
+.hero-image {
+  height: 370px;
+}
+
+.card-photo {
+  height: 190px;
+}
+
+.card-photo .photo-open {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: #e8ece5;
+  cursor: zoom-in;
+}
+
+.card-photo .photo-open > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 220ms ease;
+}
+
+.card-photo .photo-open:hover > img {
+  transform: scale(1.025);
+}
+
+.card-photo .photo-open:focus-visible {
+  outline: 3px solid #92a876;
+  outline-offset: -4px;
+}
+
+.photo-prompt {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 7px 10px;
+  border-radius: 5px;
+  background: #ffffffed;
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.card-photo .badge,
+.card-photo .favorite {
+  z-index: 1;
+}
+
+.card-description {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0 0 16px;
+  color: #657168;
+  font-size: 12px;
+  line-height: 1.65;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+@media (min-width: 761px) {
+  .cards.single-result {
+    grid-template-columns: minmax(0, 920px);
+  }
+
+  .cards.single-result .card {
+    display: grid;
+    grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.1fr);
+  }
+
+  .cards.single-result .card-photo {
+    height: auto;
+    min-height: 320px;
+  }
+
+  .cards.single-result .card-description {
+    -webkit-line-clamp: 5;
+  }
+}
+
 .search-panel {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: end;
@@ -378,6 +475,27 @@
   margin: 16px 0 24px;
 }
 
+.account-summary {
+  margin: 14px 0 22px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f5f7f1;
+}
+
+.account-summary p {
+  margin: 3px 0;
+  font-size: 12px;
+}
+
+#account-profile {
+  margin-top: 10px;
+}
+
+#account-profile .form-error {
+  min-height: 0;
+}
+
 .profile-settings > img {
   width: 76px;
   height: 76px;
@@ -420,6 +538,78 @@
   flex-basis: 100%;
 }
 
+.login.is-authenticated {
+  border-color: #9db79a;
+  background: #eef4eb;
+  color: var(--green);
+}
+
+.trust-mark {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border-radius: 50%;
+  background: #eef1e7;
+  color: var(--green);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .cards.single-result {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "brand login"
+      "nav nav"
+      "announce announce";
+    height: auto;
+    gap: 8px 12px;
+    padding: 14px 20px;
+  }
+
+  header > .brand { grid-area: brand; min-width: 0; }
+  header > #login-button { grid-area: login; white-space: nowrap; }
+
+  header > nav {
+    grid-area: nav;
+    width: 100%;
+    justify-content: flex-start;
+    gap: 22px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 1px 5px;
+    scrollbar-width: none;
+  }
+
+  header > nav::-webkit-scrollbar { display: none; }
+  header > nav a,
+  header > nav button { flex: 0 0 auto; white-space: nowrap; }
+
+  header > #list-space {
+    grid-area: announce;
+    justify-self: stretch;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    font-size: 12px;
+    text-align: center;
+  }
+}
+
+@media (max-width: 360px) {
+  header { padding-inline: 14px; }
+  .brand { font-size: 24px; }
+  #login-button { padding: 9px 12px; }
+}
+
 @media (max-width: 900px) {
   .search-panel {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -427,6 +617,27 @@
 }
 
 @media (max-width: 600px) {
+  .cards.single-result {
+    grid-template-columns: 1fr;
+  }
+
+  .cards.single-result .card {
+    display: block;
+  }
+
+  .cards.single-result .card-photo {
+    height: 190px;
+    min-height: 0;
+  }
+
+  .hero-image {
+    height: 245px;
+  }
+
+  .card-photo {
+    height: 190px;
+  }
+
   .search-panel {
     grid-template-columns: 1fr;
   }

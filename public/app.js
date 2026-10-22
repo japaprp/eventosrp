@@ -1,4 +1,5 @@
 import { localDateTime, parseBookingDate, quoteBooking, formatBookingDate } from './booking.mjs';
+const staticPreview = globalThis.ENCONTRO_PREVIEW === true;
 let spaces = [
  {id:1,name:'Casa Jardim',city:'São Paulo',neighborhood:'Vila Mariana',type:'Ao ar livre',events:['Casamento','Aniversário'],capacity:150,price:2800,photo:'photo-1511795409834-ef04bbd61622',description:'Um jardim acolhedor para celebrações ao ar livre, com área coberta, cozinha de apoio e mobiliário. Consulte os serviços incluídos na proposta.'},
  {id:2,name:'Espaço Aurora',city:'São Paulo',neighborhood:'Pinheiros',type:'Salão',events:['Casamento','Aniversário','Corporativo'],capacity:300,price:4500,photo:'photo-1519167758481-83f550bb49b3',description:'Salão amplo com iluminação natural, climatização e estrutura versátil para transformar a sua ideia em um evento especial.'},
@@ -10,18 +11,20 @@ let spaces = [
  {id:8,name:'Espaço Ipê',city:'Ribeirão Preto',neighborhood:'Ribeirão Preto',type:'Salão',events:['Casamento','Corporativo','Aniversário'],capacity:200,price:2300,photo:'photo-1519167758481-83f550bb49b3',description:'Salão demonstrativo em Ribeirão Preto para encontros e celebrações. Fotos ilustrativas; confirme serviços e disponibilidade na proposta.'}
 ];
 const $ = s => document.querySelector(s), money = n => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:0,maximumFractionDigits:2}).format(n);
+if($('#preview-notice'))$('#preview-notice').hidden=!staticPreview;
 const escapeHtml = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const photo = (s,w=800) => {
-  const candidate=s.photos?.[0];
+  const candidate=s.photoDetails?.find(item=>item.cover)?.url||s.photoDetails?.[0]?.url||s.photos?.[0];
   if(candidate){try{const url=new URL(candidate,location.href);if(url.protocol==='https:'||url.origin===location.origin)return url.href}catch{}}
   return `https://images.unsplash.com/${s.photo||'photo-1519167758481-83f550bb49b3'}?w=${w}&auto=format&fit=crop&q=85`;
 };
 spaces.forEach(s=>Object.assign(s,{isDemo:true,checkInTime:'09:00',checkOutTime:'09:00',minimumDays:1,cleanupMinutes:0,photos:[],amenities:[],rules:''}));
 let profile={name:'',phone:''};
-let type='', user=null, auth=null, db=null, sdk=null, unsubscribeChat=null, config={}, availability=null;
+let type='', user=null, auth=null, db=null, sdk=null, unsubscribeChat=null, config={}, availability=null, firebaseStatus='loading';
 let compared=[];let availabilityRequest=0;
 let favorites;try{favorites=JSON.parse(localStorage.getItem('encontro-favorites')||'[]')}catch{favorites=[]}if(!Array.isArray(favorites))favorites=[];
 function toast(message){$('#toast').textContent=message;$('#toast').style.display='block';setTimeout(()=>$('#toast').style.display='none',3500)}
+function setAuthenticatedUser(nextUser){user=nextUser;const button=$('#login-button');if(!button)return;button.textContent=user?'Minha conta ✓':'Entrar ↗';button.classList.toggle('is-authenticated',Boolean(user));button.setAttribute('aria-label',user?'Minha conta, sessão conectada':'Entrar na sua conta');button.title=user?'Sua sessão está ativa':''}
 function hasSearchRange(){return Boolean($('#check-in-date').value&&$('#check-out-date').value)}
 function searchQuotePrice(space){return Number(availability?.quotes?.[space.id]?.total??($('#search-plan').value==='weekend'?(space.weekendPrice??space.price*2):space.price))}
 function render(){
@@ -34,7 +37,8 @@ function render(){
  $('#max-price-value').textContent=`Até ${money(maxPrice)}`;
  $('#amenity-filter-count').textContent=amenities.length?`(${amenities.length})`:'';
  $('#active-filters').innerHTML=filters.filter(([,value])=>value).map(([key,value])=>`<button type="button" class="filter-chip" data-remove-filter="${key}">${escapeHtml(value)} <span aria-hidden="true">×</span></button>`).join('')+amenities.map(value=>`<button type="button" class="filter-chip" data-remove-amenity="${escapeHtml(value)}">${escapeHtml(value)} <span aria-hidden="true">×</span></button>`).join('');
- $('#cards').innerHTML=list.map(s=>{const estimate=quotedRange?availability?.quotes?.[s.id]:null,price=estimate?estimate.total:searchQuotePrice(s),priceLabel=estimate?`/ total estimado · ${estimate.days} diárias`:$('#search-plan').value==='weekend'?'/ pacote a partir de 48h':'/ diária';return `<article class="card"><div class="card-photo"><img src="${escapeHtml(photo(s))}" alt="${escapeHtml(s.name)}" loading="lazy"><span class="badge">${escapeHtml(s.type)}</span><button class="favorite ${favorites.includes(s.id)?'saved':''}" data-favorite="${s.id}" aria-label="Favoritar ${escapeHtml(s.name)}" aria-pressed="${favorites.includes(s.id)}">${favorites.includes(s.id)?'♥':'♡'}</button></div><div class="card-body"><div class="card-title"><h3>${escapeHtml(s.name)}</h3><span class="rating">Novo no catálogo</span></div><p class="place">⌖ ${escapeHtml(s.neighborhood)}, ${escapeHtml(s.city)}</p><div class="features"><span>♙ Até ${s.capacity} pessoas</span><span>◇ ${s.events[0]}</span></div><div class="card-bottom"><div class="price">${money(price)} <small>${priceLabel}</small></div><button class="detail-button" data-detail="${s.id}">Ver espaço ↗</button></div><div class="card-actions"><button class="detail-button" data-compare="${s.id}" aria-pressed="${compared.includes(s.id)}">${compared.includes(s.id)?'✓ Comparando':'⇄ Comparar'}</button><button class="detail-button" data-share="${s.id}">↗ Compartilhar</button></div></div></article>`}).join('');
+ $('#cards').classList.toggle('single-result',list.length===1);
+ $('#cards').innerHTML=list.map(s=>{const estimate=quotedRange?availability?.quotes?.[s.id]:null,price=estimate?estimate.total:searchQuotePrice(s),priceLabel=estimate?`/ total estimado · ${estimate.days} diárias`:$('#search-plan').value==='weekend'?'/ pacote a partir de 48h':'/ diária',photoCount=s.photoDetails?.length||s.photos?.length||1;return `<article class="card"><div class="card-photo"><button type="button" class="photo-open" data-detail="${s.id}" aria-label="Ver ${photoCount} ${photoCount===1?'foto':'fotos'} de ${escapeHtml(s.name)}"><img src="${escapeHtml(photo(s))}" alt="${escapeHtml(s.name)}" loading="lazy" decoding="async"><span class="photo-prompt">Ver ${photoCount===1?'espaço':`fotos · ${photoCount}`} ↗</span></button><span class="badge">${escapeHtml(s.type)}</span><button class="favorite ${favorites.includes(s.id)?'saved':''}" data-favorite="${s.id}" aria-label="Favoritar ${escapeHtml(s.name)}" aria-pressed="${favorites.includes(s.id)}">${favorites.includes(s.id)?'♥':'♡'}</button></div><div class="card-body"><div class="card-title"><h3>${escapeHtml(s.name)}</h3><span class="rating">Novo no catálogo</span></div><p class="place">⌖ ${escapeHtml(s.neighborhood)}, ${escapeHtml(s.city)}</p>${s.description?`<p class="card-description">${escapeHtml(s.description)}</p>`:''}<div class="features"><span>♙ Até ${s.capacity} pessoas</span><span>◇ ${s.events[0]}</span></div><div class="card-bottom"><div class="price">${money(price)} <small>${priceLabel}</small></div><button class="detail-button" data-detail="${s.id}">Ver espaço ↗</button></div><div class="card-actions"><button class="detail-button" data-compare="${s.id}" aria-pressed="${compared.includes(s.id)}">${compared.includes(s.id)?'✓ Comparando':'⇄ Comparar'}</button><button class="detail-button" data-share="${s.id}">↗ Compartilhar</button></div></div></article>`}).join('');
  $('#compare-bar').hidden=compared.length===0;$('#compare-count').textContent=`${compared.length} de 3 espaços selecionados`;
 }
 async function checkAvailability(){
@@ -45,6 +49,7 @@ async function checkAvailability(){
  if(plan==='weekend'&&(![5,6].includes(new Date(`${checkIn}T12:00:00Z`).getUTCDay())||(new Date(`${checkOut}T12:00:00Z`)-new Date(`${checkIn}T12:00:00Z`))<172800000)){ $('#availability-notice').hidden=false;$('#availability-notice').textContent='O pacote de fim de semana exige entrada na sexta ou no sábado e pelo menos 48 horas.';render();return}
  const days=(new Date(`${checkOut}T12:00:00Z`)-new Date(`${checkIn}T12:00:00Z`))/86400000;
  if(days>30){$('#availability-notice').hidden=false;$('#availability-notice').textContent='Para períodos acima de 30 diárias, consulte o atendimento.';render();return}
+ if(staticPreview){$('#availability-notice').hidden=false;$('#availability-notice').textContent='Este catálogo é demonstrativo. As datas não confirmam disponibilidade; reservas e pagamentos serão liberados após ativação dos serviços.';render();return}
  $('#availability-notice').hidden=false;$('#availability-notice').textContent='Consultando disponibilidade e valor total para o período escolhido…';render();
  try{const params=new URLSearchParams({check_in:checkIn,check_out:checkOut,plan});const response=await fetch(`api.php?action=availability&${params}`);const result=await response.json();if(!response.ok)throw new Error(result.error||'Não foi possível consultar a disponibilidade.');
   if(request!==availabilityRequest)return;availability={checkIn,checkOut,plan,ids:result.spaces.map(s=>Number(s.id)),quotes:Object.fromEntries(result.spaces.map(s=>[Number(s.id),s]))};$('#availability-notice').textContent=`${result.spaces.length} espaço(s) disponível(is) para ${new Date(checkIn+'T12:00:00').toLocaleDateString('pt-BR')} a ${new Date(checkOut+'T12:00:00').toLocaleDateString('pt-BR')}. O valor é estimado e será confirmado antes da reserva.`;render();
@@ -102,8 +107,13 @@ function modal(html){if(unsubscribeChat){unsubscribeChat();unsubscribeChat=null}
 $('#modal .close').onclick=()=>$('#modal').close();$('#modal').addEventListener('close',()=>{unsubscribeChat?.();unsubscribeChat=null});$('#modal').addEventListener('click',e=>{if(e.target===$('#modal')){const r=$('#modal').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('#modal').close()}});
 $('#search').onclick=()=>{$('#espacos').scrollIntoView({behavior:'smooth'});checkAvailability()};
 $('#cards').onclick=e=>{const f=e.target.closest('[data-favorite]'),d=e.target.closest('[data-detail]'),c=e.target.closest('[data-compare]'),s=e.target.closest('[data-share]');if(f){const id=Number(f.dataset.favorite);favorites=favorites.includes(id)?favorites.filter(x=>x!==id):[...favorites,id];try{localStorage.setItem('encontro-favorites',JSON.stringify(favorites))}catch{}render()}if(d)detail(Number(d.dataset.detail));if(c)toggleCompare(Number(c.dataset.compare));if(s)shareSpace(Number(s.dataset.share))};
-function detail(id){const s=spaces.find(s=>s.id===id),details=s.photoDetails||s.photos?.map((url,index)=>({url,description:'',cover:index===0}))||[],cover=details.find(item=>item.cover)||details[0];modal(`<img class="detail-image" src="${escapeHtml(photo(s,1200))}" alt="Foto principal de ${escapeHtml(s.name)}">${cover?.description?`<p class="photo-caption">${escapeHtml(cover.description)}</p>`:''}<span class="eyebrow" style="margin-top:20px">${escapeHtml(s.type)} · ${escapeHtml(s.city)}</span><h2>${escapeHtml(s.name)}</h2><p>${escapeHtml(s.description)}</p>${s.address?'<p>Endereço: '+escapeHtml(s.address)+'</p>':''}<p>Até ${s.capacity} convidados · ${escapeHtml(s.events.join(' / '))}</p><p><strong>${money(s.price)} / diária de até 24 horas</strong><br>Pacote de fim de semana: <strong>${money(s.weekendPrice??s.price*2)} / 48 horas</strong>. Entrada na sexta ou no sábado; dias extras pela diária do espaço.</p><p>Entrada: <strong>${escapeHtml(s.checkInTime)}</strong> · Saída: <strong>${escapeHtml(s.checkOutTime)}</strong> (Brasília)<br>Mínimo: ${s.minimumDays} diária(s) · Preparação entre reservas: ${s.cleanupMinutes} minutos</p><p>${escapeHtml(s.amenities?.join(' · ')||'Consulte as comodidades com o responsável.')}</p><p style="white-space:pre-line">${escapeHtml(s.rules||'Consulte as regras do local antes de reservar.')}</p>${details.length>1?'<div class="photo-gallery">'+details.filter(item=>!item.cover).map(item=>`<figure><img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.description||'Foto adicional do espaço')}" loading="lazy">${item.description?`<figcaption>${escapeHtml(item.description)}</figcaption>`:''}</figure>`).join('')+'</div>':''}${s.isDemo?'<p class="notice">Fotos ilustrativas e espaço de demonstração. Não há avaliações publicadas.</p>':''}<button class="primary" id="reserve">Consultar e reservar ↗</button>`);$('#reserve').onclick=()=>user?reservation(s):login(()=>reservation(s))}
+function detail(id){
+  const s=spaces.find(item=>item.id===id),details=s.photoDetails?.length?s.photoDetails:s.photos?.map((url,index)=>({url,description:'',cover:index===0}))||[],cover=details.find(item=>item.cover)||details[0],otherPhotos=details.filter(item=>!item.cover);
+  modal(`<img class="detail-image" src="${escapeHtml(photo(s,1200))}" alt="Foto principal de ${escapeHtml(s.name)}">${cover?.description?`<p class="photo-caption">${escapeHtml(cover.description)}</p>`:''}${otherPhotos.length?`<p class="photo-caption">Mais fotos do espaço</p><div class="photo-gallery" aria-label="Outras fotos do espaço">${otherPhotos.map(item=>`<figure><img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.description||'Foto adicional do espaço')}" loading="lazy">${item.description?`<figcaption>${escapeHtml(item.description)}</figcaption>`:''}</figure>`).join('')}</div>`:''}<span class="eyebrow" style="margin-top:20px">${escapeHtml(s.type)} · ${escapeHtml(s.city)}</span><h2>${escapeHtml(s.name)}</h2><p>${escapeHtml(s.description)}</p>${s.address?'<p>Endereço: '+escapeHtml(s.address)+'</p>':''}<p>Até ${s.capacity} convidados · ${escapeHtml(s.events.join(' / '))}</p><p><strong>${money(s.price)} / diária de até 24 horas</strong><br>Pacote de fim de semana: <strong>${money(s.weekendPrice??s.price*2)} / 48 horas</strong>. Entrada na sexta ou no sábado; dias extras pela diária do espaço.</p><p>Entrada: <strong>${escapeHtml(s.checkInTime)}</strong> · Saída: <strong>${escapeHtml(s.checkOutTime)}</strong> (Brasília)<br>Mínimo: ${s.minimumDays} diária(s) · Preparação entre reservas: ${s.cleanupMinutes} minutos</p><p>${escapeHtml(s.amenities?.join(' · ')||'O anfitrião ainda não informou as comodidades deste espaço.')}</p><p style="white-space:pre-line">${escapeHtml(s.rules||'Consulte as regras do local antes de reservar.')}</p>${s.isDemo?'<p class="notice">Fotos ilustrativas e espaço de demonstração. Não há avaliações publicadas.</p>':''}<button class="primary" id="reserve">Consultar e reservar ↗</button>`);
+  $('#reserve').onclick=()=>user?reservation(s):login(()=>reservation(s));
+}
 function login(after) {
+  if(staticPreview){modal('<h2>Conheça o Encontro</h2><p>Você pode explorar os espaços, filtrar por localização, comparar opções e salvar seus favoritos neste navegador.</p><p>Este catálogo é demonstrativo. Cadastro, reservas, conversa com anfitriões e pagamentos serão liberados após ativação dos serviços.</p>');return}
   if(user){account('painel');return}
   modal(`<span class="eyebrow">BEM-VINDO AO ENCONTRO</span><h2 id="auth-title">Entre para reservar.</h2><p id="auth-description">Acesse com seu e-mail e senha.</p>
     <form class="form" id="auth-form">
@@ -117,7 +127,7 @@ function login(after) {
       <div class="form-error" role="alert"></div><button class="primary" type="submit" id="auth-submit">Entrar</button>
       <button type="button" class="login" id="signup">Criar minha conta</button>
       <button type="button" class="detail-button" id="reset">Esqueci minha senha</button>
-    </form><p class="notice">Use a mesma conta para reservar espaços e acessar a Área do anfitrião. As fotos dos espaços são adicionadas apenas no cadastro de anfitrião; quem reserva pode manter uma foto de perfil.</p>${!auth?'<p class="notice">O login ficará disponível após a configuração do Firebase. O catálogo pode ser explorado livremente.</p>':''}`);
+    </form><p class="notice">Use a mesma conta para reservar espaços e acessar a Área do anfitrião. As fotos dos espaços são adicionadas apenas no cadastro de anfitrião; quem reserva pode manter uma foto de perfil.</p>${firebaseStatus==='loading'?'<p class="notice">Conectando ao Firebase…</p>':firebaseStatus==='missing'?'<p class="notice">Firebase ainda não configurado. O catálogo pode ser explorado livremente.</p>':firebaseStatus==='error'?'<p class="notice">Não foi possível carregar o Firebase. Recarregue a página e tente novamente.</p>':''}`);
   let creating=false;
   $('#signup').onclick=()=>{
     creating=!creating;$('#signup-fields').hidden=!creating;$('#signup-consent').hidden=!creating;
@@ -130,12 +140,12 @@ function login(after) {
   };
   $('#auth-form').onsubmit=async e=>{
     e.preventDefault();const error=$('.form-error'),button=$('#auth-submit');
-    if(!auth){error.textContent='Firebase ainda não configurado.';return}
+    if(!auth){error.textContent=firebaseStatus==='loading'?'Conectando ao Firebase. Aguarde alguns segundos e tente novamente.':firebaseStatus==='missing'?'Firebase ainda não configurado.':'Não foi possível carregar o Firebase. Recarregue a página e tente novamente.';return}
     const name=creating?$('#signup-name').value.trim():'',phone=creating?$('#signup-phone').value.trim():'';
     if(creating&&(name.length<2||!validPhone(phone))){error.textContent='Informe seu nome e um celular válido com DDD.';return}
     button.disabled=true;$('#signup').disabled=true;
     try{
-      const result=await (creating?sdk.createUserWithEmailAndPassword:sdk.signInWithEmailAndPassword)(auth,$('#email').value.trim(),$('#password').value);user=result.user;
+      const result=await (creating?sdk.createUserWithEmailAndPassword:sdk.signInWithEmailAndPassword)(auth,$('#email').value.trim(),$('#password').value);setAuthenticatedUser(result.user);
       if(creating){
         profile={name,phone};
         try{await sdk.updateProfile(user,{displayName:name});await api('profile',{method:'POST',body:JSON.stringify(profile)})}
@@ -151,7 +161,7 @@ function login(after) {
 }
 function validPhone(value){return /^(?:55)?[1-9][0-9][0-9]{8,9}$/.test(value.replace(/\D/g,''))}
 
-async function api(path,options={}){const token=await user.getIdToken();const r=await fetch(`api.php?action=${path}`,{...options,headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}});let data;try{data=await r.json()}catch{throw new Error('O servidor PHP não está disponível.')}if(!r.ok)throw new Error(data.error||'Não foi possível concluir.');return data}
+async function api(path,options={}){if(staticPreview)throw new Error('Cadastro, reservas e pagamentos serão liberados após ativação dos serviços.');const token=await user.getIdToken();const r=await fetch(`api.php?action=${path}`,{...options,headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}});let data;try{data=await r.json()}catch{throw new Error('O servidor PHP não está disponível.')}if(!r.ok)throw new Error(data.error||'Não foi possível concluir.');return data}
 function reservation(s) {
   modal(`<h2>Reserve seu momento.</h2><p>${escapeHtml(s.name)} · ${money(s.price)} / diária</p>
     <form class="form" id="reservation-form">
@@ -216,10 +226,43 @@ function reservation(s) {
   };
 }
 
-async function account(page){if(!user){login(()=>account(page));return}modal(`<h2>Minhas reservas</h2><p id="account-email"></p><section class="profile-settings"><img id="profile-photo" alt="Sua foto de perfil" hidden><label>Foto de perfil (opcional; uma foto)<input id="profile-photo-input" type="file" accept="image/jpeg,image/png,image/webp"></label><small>Você pode substituir sua foto a qualquer momento.</small><span id="profile-photo-status" class="notice" hidden></span></section><div id="reservation-list">Carregando reservas…</div><div class="panel-actions"><button class="primary" id="manage-spaces">Área do anfitrião</button><button class="login" id="logout">Sair da conta</button></div>`);$('#account-email').textContent=user.email;$('#manage-spaces').onclick=()=>spaceManager();$('#logout').onclick=async()=>{await sdk.signOut(auth);$('#modal').close();toast('Você saiu da conta.')};
- async function showProfilePhoto(){const image=$('#profile-photo');if(!image)return;try{const token=await user.getIdToken(),response=await fetch('api.php?action=profile-photo',{headers:{Authorization:`Bearer ${token}`}});if(!response.ok)return;image.src=URL.createObjectURL(await response.blob());image.hidden=false}catch{const status=$('#profile-photo-status');if(status){status.hidden=false;status.textContent='Não foi possível carregar a foto de perfil.'}}}
- showProfilePhoto();$('#profile-photo-input').onchange=async event=>{const file=event.target.files[0];if(!file)return;const status=$('#profile-photo-status');status.hidden=false;status.textContent='Preparando sua foto…';try{const compressed=await compressProfilePhoto(file),body=new FormData();body.append('photo',compressed);const token=await user.getIdToken(),response=await fetch('api.php?action=upload-profile-photo',{method:'POST',headers:{Authorization:`Bearer ${token}`},body}),result=await response.json();if(!response.ok)throw new Error(result.error||'Não foi possível salvar sua foto.');status.textContent='Foto de perfil atualizada.';await showProfilePhoto()}catch(error){status.textContent=error.message}event.target.value=''};
- try{const data=await api('reservations');const list=$('#reservation-list');if(!list)return;list.textContent='';if(!data.length)list.textContent='Você ainda não tem reservas. Explore os espaços e encontre seu cenário.';for(const r of data){const item=document.createElement('div');item.className='reservation-item';const title=document.createElement('strong');title.textContent=r.name;const p=document.createElement('p');p.textContent=`Entrada: ${formatBookingDate(r.check_in)} · Saída: ${formatBookingDate(r.check_out)} · ${r.billable_days} diária(s) · ${r.plan==='weekend'?'Pacote de fim de semana':'Diárias'} · ${money(Number(r.total))} · ${r.status}${r.terms_accepted_at?' · Condições aceitas em '+formatBookingDate(r.terms_accepted_at):''}`;item.append(title,p);appendAcceptedTerms(item,r.terms_snapshot);if(r.terms_snapshot){const receipt=document.createElement('button');receipt.type='button';receipt.className='detail-button';receipt.textContent='Baixar comprovante / imprimir';receipt.onclick=()=>downloadReservationReceipt(r);item.append(receipt)}const chatButton=document.createElement('button');chatButton.className='detail-button';chatButton.textContent='Conversar sobre a reserva ↗';chatButton.onclick=()=>chat(r.id);item.append(chatButton);list.append(item)}}catch(e){if($('#reservation-list'))$('#reservation-list').textContent=e.message}}
+async function account(page){
+  if(!user){login(()=>account(page));return}
+  modal(`<h2>Minha conta</h2><section class="account-summary"><p><strong id="account-email"></strong></p><p id="account-role" role="status">Conferindo seus espaços…</p></section><h3>Seus dados</h3><form class="form" id="account-profile"><label>Nome completo<input id="account-name" autocomplete="name" minlength="2" maxlength="120" required></label><label>Celular com DDD<input id="account-phone" type="tel" autocomplete="tel" maxlength="25" required></label><div class="form-error" id="account-profile-error" role="alert"></div><button class="primary" type="submit" id="save-account-profile">Salvar meus dados</button></form><section class="profile-settings"><img id="profile-photo" alt="Sua foto de perfil" hidden><label>Foto de perfil (opcional; uma foto)<input id="profile-photo-input" type="file" accept="image/jpeg,image/png,image/webp"></label><small>Você pode substituir sua foto a qualquer momento.</small><span id="profile-photo-status" class="notice" hidden></span></section><h3>Minhas reservas</h3><div id="reservation-list">Carregando reservas…</div><div class="panel-actions"><button class="primary" id="manage-spaces">Meus espaços ↗</button><button class="login" id="logout">Sair da conta</button></div>`);
+  $('#account-email').textContent=user.email||'E-mail não informado';
+  $('#manage-spaces').onclick=()=>spaceManager();
+  $('#logout').onclick=async()=>{await sdk.signOut(auth);$('#modal').close();toast('Você saiu da conta.')};
+  $('#account-profile').onsubmit=async event=>{
+    event.preventDefault();
+    const name=$('#account-name').value.trim(),phone=$('#account-phone').value.trim(),button=$('#save-account-profile'),error=$('#account-profile-error');
+    if(name.length<2){error.textContent='Informe seu nome completo.';return}
+    if(!validPhone(phone)){error.textContent='Informe um celular válido com DDD.';return}
+    button.disabled=true;error.textContent='';
+    try{profile=await api('profile',{method:'POST',body:JSON.stringify({name,phone})});toast('Seus dados foram atualizados.')}
+    catch(e){error.textContent=e.message}
+    finally{button.disabled=false}
+  };
+  async function showProfilePhoto(){const image=$('#profile-photo');if(!image)return;try{const token=await user.getIdToken(),response=await fetch('api.php?action=profile-photo',{headers:{Authorization:`Bearer ${token}`}});if(!response.ok)return;image.src=URL.createObjectURL(await response.blob());image.hidden=false}catch{const status=$('#profile-photo-status');if(status){status.hidden=false;status.textContent='Não foi possível carregar a foto de perfil.'}}}
+  showProfilePhoto();$('#profile-photo-input').onchange=async event=>{const file=event.target.files[0];if(!file)return;const status=$('#profile-photo-status');status.hidden=false;status.textContent='Preparando sua foto…';try{const compressed=await compressProfilePhoto(file),body=new FormData();body.append('photo',compressed);const token=await user.getIdToken(),response=await fetch('api.php?action=upload-profile-photo',{method:'POST',headers:{Authorization:`Bearer ${token}`},body}),result=await response.json();if(!response.ok)throw new Error(result.error||'Não foi possível salvar sua foto.');status.textContent='Foto de perfil atualizada.';await showProfilePhoto()}catch(error){status.textContent=error.message}event.target.value=''};
+  const [profileResult,spacesResult,reservationsResult]=await Promise.allSettled([api('profile'),api('my-spaces'),api('reservations')]);
+  if(!$('#account-profile'))return;
+  if(profileResult.status==='fulfilled'){
+    profile={name:profileResult.value.name||'',phone:profileResult.value.phone||''};
+    $('#account-name').value=profile.name||user.displayName||'';$('#account-phone').value=profile.phone;
+  }else{
+    $('#account-name').value=profile.name||user.displayName||'';$('#account-phone').value=profile.phone||'';
+    $('#account-profile-error').textContent='Não foi possível carregar os dados salvos. Você ainda pode tentar preencher e salvar.';
+  }
+  if(spacesResult.status==='fulfilled'){
+    const count=spacesResult.value.length;
+    $('#account-role').textContent=count?`Esta conta tem ${count} ${count===1?'espaço anunciado':'espaços anunciados'} e também pode fazer reservas.`:'Você ainda não anunciou espaços. A mesma conta pode anunciar e também fazer reservas.';
+  }else $('#account-role').textContent='Não foi possível confirmar se há espaços anunciados nesta conta.';
+  const list=$('#reservation-list');
+  if(reservationsResult.status==='rejected'){list.textContent=reservationsResult.reason.message;return}
+  const reservations=reservationsResult.value;list.textContent='';
+  if(!reservations.length){list.textContent='Você ainda não tem reservas.';const explore=document.createElement('button');explore.type='button';explore.className='login';explore.textContent='Voltar ao catálogo';explore.onclick=()=>{$('#modal').close();location.hash='espacos';$('#espacos').scrollIntoView({behavior:'smooth'})};list.append(explore);return}
+  for(const r of reservations){const item=document.createElement('div');item.className='reservation-item';const title=document.createElement('strong');title.textContent=r.name;const p=document.createElement('p');p.textContent=`Entrada: ${formatBookingDate(r.check_in)} · Saída: ${formatBookingDate(r.check_out)} · ${r.billable_days} diária(s) · ${r.plan==='weekend'?'Pacote de fim de semana':'Diárias'} · ${money(Number(r.total))} · ${r.status}${r.terms_accepted_at?' · Condições aceitas em '+formatBookingDate(r.terms_accepted_at):''}`;item.append(title,p);appendAcceptedTerms(item,r.terms_snapshot);if(r.terms_snapshot){const receipt=document.createElement('button');receipt.type='button';receipt.className='detail-button';receipt.textContent='Baixar comprovante / imprimir';receipt.onclick=()=>downloadReservationReceipt(r);item.append(receipt)}const chatButton=document.createElement('button');chatButton.className='detail-button';chatButton.textContent='Conversar sobre a reserva ↗';chatButton.onclick=()=>chat(r.id);item.append(chatButton);list.append(item)}
+}
 async function compressBrowserPhoto(file){if(!/^image\/(jpeg|png|webp)$/.test(file.type))throw new Error('Escolha uma foto JPEG, PNG ou WebP.');const bitmap=await createImageBitmap(file);const scale=Math.min(1,1600/Math.max(bitmap.width,bitmap.height));const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));const context=canvas.getContext('2d');if(!context){bitmap.close();throw new Error('Este navegador não consegue preparar a imagem.')}context.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();for(const quality of [.84,.72,.6,.5]){const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));if(blob&&blob.size<=1500000)return new File([blob],'foto.jpg',{type:'image/jpeg'})}throw new Error('Não foi possível reduzir esta foto. Escolha outra imagem.')}
 async function compressProfilePhoto(file){return compressBrowserPhoto(file)}
 function chat(id){modal('<h2>Conversa da reserva</h2><div class="chat-messages" id="messages" aria-live="polite"></div><form class="form" id="chat-form"><label>Sua mensagem<input id="chat-text" maxlength="1000" required></label><div class="form-error" role="alert"></div><button class="primary">Enviar mensagem</button></form>');if(!db){$('#messages').textContent='O chat ficará disponível após configurar o Realtime Database.';$('#chat-form').onsubmit=e=>{e.preventDefault();$('.form-error').textContent='Chat ainda não configurado.'};return}const ref=sdk.ref(db,`chats/${id}/messages`);unsubscribeChat=sdk.onValue(sdk.query(ref,sdk.limitToLast(100)),snap=>{const box=$('#messages');if(!box)return;box.textContent='';snap.forEach(child=>{const p=document.createElement('p');p.textContent=`${child.val().sender===user.uid?'Você':'Participante'}: ${child.val().text}`;box.append(p)});box.scrollTop=box.scrollHeight},()=>{if($('#messages'))$('#messages').textContent='Não foi possível acessar esta conversa.'});$('#chat-form').onsubmit=async e=>{e.preventDefault();const text=$('#chat-text').value.trim();if(!text)return;try{await sdk.push(ref,{sender:user.uid,text,createdAt:sdk.serverTimestamp()});$('#chat-text').value=''}catch{$('.form-error').textContent='Não foi possível enviar a mensagem.'}}}
@@ -230,13 +273,14 @@ function passwordReset(email='') {
   modal(`<h2>Recuperar minha senha.</h2><p>Informe o e-mail do cadastro para receber um link de recuperação.</p><form class="form" id="reset-form"><label>E-mail<input type="email" id="reset-email" autocomplete="email" required></label><div class="form-error" role="alert"></div><button class="primary" id="send-reset">Enviar link de recuperação</button><button type="button" class="login" id="back-login">Voltar ao login</button></form>`);
   $('#reset-email').value=email;$('#back-login').onclick=()=>login();
   $('#reset-form').onsubmit=async e=>{
-    e.preventDefault();if(!auth){$('.form-error').textContent='Firebase ainda não configurado.';return}
+    e.preventDefault();if(!auth){$('.form-error').textContent=firebaseStatus==='loading'?'Conectando ao Firebase. Aguarde alguns segundos e tente novamente.':firebaseStatus==='missing'?'Firebase ainda não configurado.':'Não foi possível carregar o Firebase. Recarregue a página e tente novamente.';return}
     const button=$('#send-reset');button.disabled=true;
     try{await sdk.sendPasswordResetEmail(auth,$('#reset-email').value.trim());$('#modal').close();toast('Se houver uma conta com esse e-mail, enviaremos o link de recuperação.')}
     catch{$('.form-error').textContent='Não foi possível enviar o link. Confira o e-mail e tente novamente.';button.disabled=false}
   };
 }
 async function refreshCatalogue(){
+  if(staticPreview)return;
   try{
     const response=await fetch('api.php?action=spaces');if(!response.ok)return;
     const data=await response.json();if(!Array.isArray(data))return;
@@ -360,6 +404,34 @@ function spaceForm(space=null){
   };
 }
 
-try{const response=await fetch('config.php');if(response.ok)config=await response.json();if(config.firebase?.apiKey){const [app,a,d]=await Promise.all([import('https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js'),import('https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js'),import('https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js')]);sdk={...a,...d};const instance=app.initializeApp(config.firebase);auth=a.getAuth(instance);if(config.firebase.databaseURL)db=d.getDatabase(instance);a.onAuthStateChanged(auth,async u=>{user=u;$('#login-button').textContent=u?'Minha conta ↗':'Entrar ↗';if(!u){profile={name:'',phone:''};return}try{const saved=await api('profile');if(user?.uid===u.uid)profile={name:saved.name||profile.name||u.displayName||'',phone:saved.phone||profile.phone||''}}catch{}})}}catch{console.info('Modo catálogo: integrações ainda não configuradas.')}
+// Inicializar Auth primeiro: o login não deve aguardar o módulo opcional do Realtime Database.
+if(!staticPreview){
+  try{
+    const response=await fetch('config.php');
+    if(!response.ok)throw new Error(`config.php respondeu HTTP ${response.status}`);
+    config=await response.json();
+    if(config.firebase?.apiKey){
+      const [app,a]=await Promise.all([
+        import('https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js'),
+        import('https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js')
+      ]);
+      const instance=app.initializeApp(config.firebase);
+      sdk={...a};
+      auth=a.getAuth(instance);
+      firebaseStatus='ready';
+      a.onAuthStateChanged(auth,async u=>{setAuthenticatedUser(u);if(!u){profile={name:'',phone:''};return}try{const saved=await api('profile');if(user?.uid===u.uid)profile={name:saved.name||profile.name||u.displayName||'',phone:saved.phone||profile.phone||''}}catch{}});
+      if(config.firebase.databaseURL){
+        try{
+          const d=await import('https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js');
+          sdk={...sdk,...d};
+          db=d.getDatabase(instance);
+        }catch(error){console.warn('Firebase Realtime Database indisponível; autenticação permanece ativa.',error)}
+      }
+    }else firebaseStatus='missing';
+  }catch(error){
+    firebaseStatus='error';
+    console.error('Falha ao inicializar Firebase Authentication.',error);
+  }
+}
 
 refreshCatalogue().then(()=>{const id=Number(new URLSearchParams(location.search).get('space'));if(id&&spaces.some(s=>s.id===id))detail(id)});

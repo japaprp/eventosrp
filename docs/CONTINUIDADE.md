@@ -74,3 +74,11 @@ Publicar a branch ou a PR no GitHub disponibiliza o código para revisão; não 
 - [Preferências Checkout Pro](https://www.mercadopago.com.br/developers/pt/reference/online-payments/checkout-pro-preferences/overview)
 - [Configurar Firebase Authentication](https://firebase.google.com/docs/auth/web/start)
 - [Regras do Realtime Database](https://firebase.google.com/docs/database/security/rules-conditions)
+
+
+## Conta, galeria e reserva ? 21/10/2026
+
+- A conta exibe os dados de perfil, reservas e espa?os anunciados; o bot?o para reservar abre o fluxo de login e continua para a reserva ap?s autenticar.
+- O cat?logo apresenta descri??es e abre a galeria do an?ncio. An?ncios legados usam a lista de fotos como fallback quando n?o h? detalhes de capa.
+- A autentica??o do Firebase inicializa separada do Realtime Database, que ? opcional para login/reserva e usado pelo chat.
+- A vers?o permanece nesta PR. O servi?o Render acompanha `main`; antes de mesclar e implantar, a migra??o 004 precisa ser aplicada com backup conforme os procedimentos do projeto. Nenhum teste foi executado nesta atualiza??o.
