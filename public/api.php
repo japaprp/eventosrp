@@ -64,7 +64,7 @@ try {
  $message=$input['message']??'';
  if(!$guests||$guests<1||!$spaceId||!is_string($message)||!trim($message)||mb_strlen($message)>2000)respond(['error'=>'Confira os dados do evento.'],422);
  $pdo->beginTransaction();$q=$pdo->prepare('SELECT * FROM spaces WHERE id=? FOR UPDATE');$q->execute([$spaceId]);$space=$q->fetch(PDO::FETCH_ASSOC);
- if(!$space||!$space['active']||!empty($space['is_demo'])||$guests>$space['capacity']{$pdo->rollBack();respond(['error'=>'Espaço indisponível ou capacidade inválida.'],422);}
+ if(!$space||!$space['active']||!empty($space['is_demo'])||$guests>$space['capacity']){$pdo->rollBack();respond(['error'=>'Espaço indisponível ou capacidade inválida.'],422);}
  $plan=$input['plan']??'daily';
  try{$quote=bookingQuote($input['check_in']??null,$input['check_out']??null,$plan,(string)$space['daily_price'],$space['weekend_price']===null?null:(string)$space['weekend_price']);enforceSpaceSchedule($space,$quote);}
  catch(InvalidArgumentException $e){$pdo->rollBack();respond(['error'=>$e->getMessage()],422);}
