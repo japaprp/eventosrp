@@ -83,10 +83,10 @@ Publicar a branch ou a PR no GitHub disponibiliza o código para revisão; não 
 - O login por e-mail e Google compartilha o fluxo de autenticação. O Firebase Authentication inicializa separado do Realtime Database, opcional para login/reserva e usado pelo chat.
 - A integração foi reconciliada com a versão atual de `main` e as mudanças estão na PR #1. O Render acompanha `main`; migração 004 e verificações de configuração operacional precisam ocorrer antes de anunciar reservas e pagamentos reais.
 - A API pública e a disponibilidade ignoram anúncios com `is_demo=1`, e a criação de reserva rejeita demonstrações no servidor. Os exemplos permanecem apenas na prévia; no site conectado, o catálogo inicia vazio até carregar anúncios reais.
-- Produção ainda depende de verificar banco e aplicar migração com backup, configurar armazenamento durável para fotos e confirmar credenciais do Mercado Pago em modo de produção. Os anúncios existentes são todos demonstrativos; os anfitriões precisam cadastrar espaços e fotos reais autorizados.
-- O teste `node tests/frontend.mjs` passou com 18 cenários, incluindo catálogo sem demos. `git diff --check` passou. Testes PHP/MySQL não foram executados: PHP e Composer não estão instalados neste ambiente.
+- Produção ainda depende de confirmar backup/esquema do MySQL, aplicar a migração 004 após reautenticar o Railway, configurar armazenamento durável para fotos e confirmar credenciais do Mercado Pago em produção. A API pública ficou sem anúncios após ocultar registros demonstrativos; anfitriões precisam cadastrar espaços, fotos e descrições reais autorizadas.
+- O teste `node tests/frontend.mjs` passou com 18 cenários, incluindo catálogo sem demonstrações. `node --check public/app.js`, `php -l public/api.php` e `git diff --check` passaram. Testes de integração PHP/MySQL não foram executados contra o banco de produção; Composer não está disponível neste ambiente.
 
 
-## Proteção de anúncios demonstrativos em produção — 21/10/2026
+## Produção após hotfix — 22/10/2026
 
-A API pública lista somente espaços ativos com `is_demo=0`, e a criação de reserva recusa espaços demonstrativos no servidor. O catálogo informa quando não há anúncios publicados. Esta correção não exige migração e evita que os oito registros atuais, todos demonstrativos, sejam apresentados como ofertas reais. O site precisa de anfitriões cadastrando espaços, fotos e descrições reais autorizadas antes de abrir reservas reais.
+O commit `c37393c` está ativo no Render (`dep-dbcmhs5g1s2s7387lp70`). A página e a API responderam HTTP 200; após estabilizar a troca de instâncias, a API retornou zero espaços ativos e zero anúncios demonstrativos. Nenhuma migração foi executada. O Railway exige reautenticação para confirmar o banco e aplicar a migração 004.

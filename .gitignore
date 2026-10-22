@@ -8,3 +8,5 @@
 *.key
 *service-account*.json
 *.log
+/var/space-photos/
+/var/profile-photos/
