@@ -1,6 +1,6 @@
 import { localDateTime, parseBookingDate, quoteBooking, formatBookingDate } from './booking.mjs';
 const staticPreview = globalThis.ENCONTRO_PREVIEW === true;
-let spaces = [
+const demonstrationSpaces = [
  {id:1,name:'Casa Jardim',city:'São Paulo',neighborhood:'Vila Mariana',type:'Ao ar livre',events:['Casamento','Aniversário'],capacity:150,price:2800,photo:'photo-1511795409834-ef04bbd61622',description:'Um jardim acolhedor para celebrações ao ar livre, com área coberta, cozinha de apoio e mobiliário. Consulte os serviços incluídos na proposta.'},
  {id:2,name:'Espaço Aurora',city:'São Paulo',neighborhood:'Pinheiros',type:'Salão',events:['Casamento','Aniversário','Corporativo'],capacity:300,price:4500,photo:'photo-1519167758481-83f550bb49b3',description:'Salão amplo com iluminação natural, climatização e estrutura versátil para transformar a sua ideia em um evento especial.'},
  {id:3,name:'Terraço Horizonte',city:'São Paulo',neighborhood:'Vila Olímpia',type:'Rooftop',events:['Corporativo','Aniversário'],capacity:100,price:3200,photo:'photo-1514933651103-005eec06c04b',description:'Ambiente contemporâneo com área de convivência para encontros, recepções e celebrações intimistas.'},
@@ -10,6 +10,7 @@ let spaces = [
  {id:7,name:'Recanto Ribeirão',city:'Ribeirão Preto',neighborhood:'Ribeirão Preto',type:'Ao ar livre',events:['Casamento','Aniversário'],capacity:150,price:1800,photo:'photo-1511795409834-ef04bbd61622',description:'Espaço demonstrativo em Ribeirão Preto, com jardim e área de apoio para celebrar. Fotos ilustrativas; confirme a estrutura na proposta.'},
  {id:8,name:'Espaço Ipê',city:'Ribeirão Preto',neighborhood:'Ribeirão Preto',type:'Salão',events:['Casamento','Corporativo','Aniversário'],capacity:200,price:2300,photo:'photo-1519167758481-83f550bb49b3',description:'Salão demonstrativo em Ribeirão Preto para encontros e celebrações. Fotos ilustrativas; confirme serviços e disponibilidade na proposta.'}
 ];
+let spaces = staticPreview ? demonstrationSpaces : [];
 const $ = s => document.querySelector(s), money = n => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:0,maximumFractionDigits:2}).format(n);
 if($('#preview-notice'))$('#preview-notice').hidden=!staticPreview;
 const escapeHtml = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -20,7 +21,7 @@ const photo = (s,w=800) => {
 };
 spaces.forEach(s=>Object.assign(s,{isDemo:true,checkInTime:'09:00',checkOutTime:'09:00',minimumDays:1,cleanupMinutes:0,photos:[],amenities:[],rules:''}));
 let profile={name:'',phone:''};
-let type='', user=null, auth=null, db=null, sdk=null, unsubscribeChat=null, config={}, availability=null, firebaseStatus='loading',firebaseFailureDetail='';
+let type='', user=null, auth=null, db=null, sdk=null, unsubscribeChat=null, config={}, availability=null, firebaseStatus='loading',firebaseFailureDetail='',catalogState=staticPreview?'demo':'loading';
 let compared=[];let availabilityRequest=0;
 let favorites;try{favorites=JSON.parse(localStorage.getItem('encontro-favorites')||'[]')}catch{favorites=[]}if(!Array.isArray(favorites))favorites=[];
 function toast(message){$('#toast').textContent=message;$('#toast').style.display='block';setTimeout(()=>$('#toast').style.display='none',3500)}
@@ -34,6 +35,8 @@ function render(){
  let list=spaces.filter(s=>(!type||s.type===type)&&(!$('#location').value||s.city===$('#location').value)&&(!$('#event').value||s.events.includes($('#event').value))&&s.capacity>=Number($('#capacity').value)&&((hasRange&&!quotedRange)||maxPrice>=60000||searchQuotePrice(s)<=maxPrice)&&amenities.every(amenity=>s.amenities?.includes(amenity))&&(!hasRange||!quotedRange||availability.ids.includes(s.id)));
  if(sort==='price')list.sort((a,b)=>searchQuotePrice(a)-searchQuotePrice(b));else if(sort==='capacity')list.sort((a,b)=>b.capacity-a.capacity);else if(sort==='newest')list.sort((a,b)=>b.id-a.id);
  $('#count').textContent=`${list.length} espaços encontrados`;$('#empty').hidden=!!list.length;
+ if(!list.length)$('#empty').textContent=spaces.length?'Nenhum espaço encontrado. Experimente outros filtros.':catalogState==='loading'?'Carregando espaços reais…':catalogState==='error'?'Não foi possível carregar os espaços agora. Tente novamente em alguns instantes.':'Ainda não há espaços reais publicados. Se você é anfitrião, anuncie seu espaço pelo botão “Anunciar espaço”.';
+ const notice=$('#catalog-notice');if(staticPreview){notice.hidden=false;notice.textContent='Catálogo ilustrativo. Os exemplos não representam ofertas reais e não aceitam reservas.'}else if(catalogState==='loading'){notice.hidden=false;notice.textContent='Carregando espaços reais anunciados…'}else if(catalogState==='error'){notice.hidden=false;notice.textContent='Não foi possível atualizar o catálogo. Tente novamente em alguns instantes.'}else if(!spaces.length){notice.hidden=false;notice.textContent='Os espaços de demonstração foram removidos. Cadastre seu espaço real pela Área do anfitrião para começar a receber solicitações.'}else notice.hidden=true;
  $('#price-unit').textContent=quotedRange?'total estimado':$('#search-plan').value==='weekend'?'por pacote (48h)':'por diária';
  const filters=[['location',$('#location').value],['event',$('#event').value],['capacity',$('#capacity').value?`Mínimo de ${$('#capacity').value} convidados`:'' ],['max-price',maxPrice<60000?`Até ${money(maxPrice)}`:'' ],['date-range',hasRange?`${$('#check-in-date').value} a ${$('#check-out-date').value} · ${$('#search-plan').value==='weekend'?'Fim de semana':'Diárias'}`:'' ],['type',type]];
  $('#max-price-value').textContent=`Até ${money(maxPrice)}`;
@@ -111,8 +114,8 @@ $('#search').onclick=()=>{$('#espacos').scrollIntoView({behavior:'smooth'});chec
 $('#cards').onclick=e=>{const f=e.target.closest('[data-favorite]'),d=e.target.closest('[data-detail]'),c=e.target.closest('[data-compare]'),s=e.target.closest('[data-share]');if(f){const id=Number(f.dataset.favorite);favorites=favorites.includes(id)?favorites.filter(x=>x!==id):[...favorites,id];try{localStorage.setItem('encontro-favorites',JSON.stringify(favorites))}catch{}render()}if(d)detail(Number(d.dataset.detail));if(c)toggleCompare(Number(c.dataset.compare));if(s)shareSpace(Number(s.dataset.share))};
 function detail(id){
   const s=spaces.find(item=>item.id===id),details=s.photoDetails?.length?s.photoDetails:s.photos?.map((url,index)=>({url,description:'',cover:index===0}))||[],cover=details.find(item=>item.cover)||details[0],otherPhotos=details.filter(item=>!item.cover);
-  modal(`<img class="detail-image" src="${escapeHtml(photo(s,1200))}" alt="Foto principal de ${escapeHtml(s.name)}">${cover?.description?`<p class="photo-caption">${escapeHtml(cover.description)}</p>`:''}${otherPhotos.length?`<p class="photo-caption">Mais fotos do espaço</p><div class="photo-gallery" aria-label="Outras fotos do espaço">${otherPhotos.map(item=>`<figure><img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.description||'Foto adicional do espaço')}" loading="lazy">${item.description?`<figcaption>${escapeHtml(item.description)}</figcaption>`:''}</figure>`).join('')}</div>`:''}<span class="eyebrow" style="margin-top:20px">${escapeHtml(s.type)} · ${escapeHtml(s.city)}</span><h2>${escapeHtml(s.name)}</h2><p>${escapeHtml(s.description)}</p>${s.address?'<p>Endereço: '+escapeHtml(s.address)+'</p>':''}<p>Até ${s.capacity} convidados · ${escapeHtml(s.events.join(' / '))}</p><p><strong>${money(s.price)} / diária de até 24 horas</strong><br>Pacote de fim de semana: <strong>${money(s.weekendPrice??s.price*2)} / 48 horas</strong>. Entrada na sexta ou no sábado; dias extras pela diária do espaço.</p><p>Entrada: <strong>${escapeHtml(s.checkInTime)}</strong> · Saída: <strong>${escapeHtml(s.checkOutTime)}</strong> (Brasília)<br>Mínimo: ${s.minimumDays} diária(s) · Preparação entre reservas: ${s.cleanupMinutes} minutos</p><p>${escapeHtml(s.amenities?.join(' · ')||'O anfitrião ainda não informou as comodidades deste espaço.')}</p><p style="white-space:pre-line">${escapeHtml(s.rules||'Consulte as regras do local antes de reservar.')}</p>${s.isDemo?'<p class="notice">Fotos ilustrativas e espaço de demonstração. Não há avaliações publicadas.</p>':''}<button class="primary" id="reserve">Consultar e reservar ↗</button>`);
-  $('#reserve').onclick=()=>user?reservation(s):login(()=>reservation(s));
+  modal(`<img class="detail-image" src="${escapeHtml(photo(s,1200))}" alt="Foto principal de ${escapeHtml(s.name)}">${cover?.description?`<p class="photo-caption">${escapeHtml(cover.description)}</p>`:''}${otherPhotos.length?`<p class="photo-caption">Mais fotos do espaço</p><div class="photo-gallery" aria-label="Outras fotos do espaço">${otherPhotos.map(item=>`<figure><img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.description||'Foto adicional do espaço')}" loading="lazy">${item.description?`<figcaption>${escapeHtml(item.description)}</figcaption>`:''}</figure>`).join('')}</div>`:''}<span class="eyebrow" style="margin-top:20px">${escapeHtml(s.type)} · ${escapeHtml(s.city)}</span><h2>${escapeHtml(s.name)}</h2><p>${escapeHtml(s.description)}</p>${s.address?'<p>Endereço: '+escapeHtml(s.address)+'</p>':''}<p>Até ${s.capacity} convidados · ${escapeHtml(s.events.join(' / '))}</p><p><strong>${money(s.price)} / diária de até 24 horas</strong><br>Pacote de fim de semana: <strong>${money(s.weekendPrice??s.price*2)} / 48 horas</strong>. Entrada na sexta ou no sábado; dias extras pela diária do espaço.</p><p>Entrada: <strong>${escapeHtml(s.checkInTime)}</strong> · Saída: <strong>${escapeHtml(s.checkOutTime)}</strong> (Brasília)<br>Mínimo: ${s.minimumDays} diária(s) · Preparação entre reservas: ${s.cleanupMinutes} minutos</p><p>${escapeHtml(s.amenities?.join(' · ')||'O anfitrião ainda não informou as comodidades deste espaço.')}</p><p style="white-space:pre-line">${escapeHtml(s.rules||'Consulte as regras do local antes de reservar.')}</p>${s.isDemo?'<p class="notice">Espaço e fotos ilustrativos. Este anúncio não aceita reservas.</p><button class="primary" disabled>Reserva indisponível</button>':'<button class="primary" id="reserve">Consultar e reservar ↗</button>'}`);
+  if(!s.isDemo)$('#reserve').onclick=()=>user?reservation(s):login(()=>reservation(s));
 }
 function login(after) {
   if(staticPreview){modal('<h2>Conheça o Encontro</h2><p>Você pode explorar os espaços, filtrar por localização, comparar opções e salvar seus favoritos neste navegador.</p><p>Este catálogo é demonstrativo. Cadastro, reservas, conversa com anfitriões e pagamentos serão liberados após ativação dos serviços.</p>');return}
@@ -173,6 +176,7 @@ function validPhone(value){return /^(?:55)?[1-9][0-9][0-9]{8,9}$/.test(value.rep
 
 async function api(path,options={}){if(staticPreview)throw new Error('Cadastro, reservas e pagamentos serão liberados após ativação dos serviços.');const token=await user.getIdToken();const r=await fetch(`api.php?action=${path}`,{...options,headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}});let data;try{data=await r.json()}catch{throw new Error('O servidor PHP não está disponível.')}if(!r.ok)throw new Error(data.error||'Não foi possível concluir.');return data}
 function reservation(s) {
+  if(s.isDemo){toast('Este espaço é apenas ilustrativo e não aceita reservas.');return}
   modal(`<h2>Reserve seu momento.</h2><p>${escapeHtml(s.name)} · ${money(s.price)} / diária</p>
     <form class="form" id="reservation-form">
       <label>Tipo de locação<select id="plan"><option value="daily">Diárias — um ou mais dias</option><option value="weekend">Pacote de fim de semana — 2 ou mais dias</option></select></label>
@@ -292,14 +296,13 @@ function passwordReset(email='') {
 async function refreshCatalogue(){
   if(staticPreview)return;
   try{
-    const response=await fetch('api.php?action=spaces');if(!response.ok)return;
-    const data=await response.json();if(!Array.isArray(data))return;
-    const samples=new Map(spaces.filter(s=>s.isDemo).map(s=>[s.id,s]));
-    spaces=data.map(s=>{const demo=s.isDemo?samples.get(s.id):null;return {...demo,...s,description:s.description||demo?.description||'',neighborhood:s.neighborhood||demo?.neighborhood||'',photo:demo?.photo}});
+    const response=await fetch('api.php?action=spaces');if(!response.ok)throw new Error('Catálogo indisponível.');
+    const data=await response.json();if(!Array.isArray(data))throw new Error('Resposta inválida do catálogo.');
+    spaces=data.filter(s=>s.isDemo===false).map(s=>({...s,description:s.description||'',neighborhood:s.neighborhood||''}));catalogState='ready';
     const selected=$('#location').value,cities=[...new Set(['Ribeirão Preto',...spaces.map(s=>s.city)])].sort((a,b)=>a.localeCompare(b,'pt-BR'));
     $('#location').innerHTML='<option value="">Todas as localizações</option>'+cities.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');$('#location').value=cities.includes(selected)?selected:'';
-    $('#catalog-notice').hidden=!spaces.some(s=>s.isDemo);if(hasSearchRange())checkAvailability();else render();
-  }catch{}
+    if(hasSearchRange())checkAvailability();else render();
+  }catch{spaces=[];catalogState='error';render()}
 }
 async function spaceManager(){
   if(!user){login(()=>spaceManager());return}

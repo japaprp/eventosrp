@@ -82,5 +82,6 @@ Publicar a branch ou a PR no GitHub disponibiliza o código para revisão; não 
 - O catálogo apresenta descrições e abre a galeria do anúncio. Anúncios legados usam a lista de fotos como fallback quando não há detalhes de capa.
 - O login por e-mail e Google compartilha o fluxo de autenticação. O Firebase Authentication inicializa separado do Realtime Database, opcional para login/reserva e usado pelo chat.
 - A integração foi reconciliada com a versão atual de `main` e as mudanças estão na PR #1. O Render acompanha `main`; migração 004 e verificações de configuração operacional precisam ocorrer antes de anunciar reservas e pagamentos reais.
-- Produção ainda depende de verificar banco e aplicar migração com backup, configurar armazenamento durável para fotos e confirmar credenciais do Mercado Pago em modo de produção. Os anúncios atuais são demonstrativos e precisam ser substituídos por espaços reais autorizados pelos anfitriões.
-- Não foram executados testes automatizados nesta etapa.
+- A API pública e a disponibilidade ignoram anúncios com `is_demo=1`, e a criação de reserva rejeita demonstrações no servidor. Os exemplos permanecem apenas na prévia; no site conectado, o catálogo inicia vazio até carregar anúncios reais.
+- Produção ainda depende de verificar banco e aplicar migração com backup, configurar armazenamento durável para fotos e confirmar credenciais do Mercado Pago em modo de produção. Os anúncios existentes são todos demonstrativos; os anfitriões precisam cadastrar espaços e fotos reais autorizados.
+- O teste `node tests/frontend.mjs` passou com 18 cenários, incluindo catálogo sem demos. `git diff --check` passou. Testes PHP/MySQL não foram executados: PHP e Composer não estão instalados neste ambiente.

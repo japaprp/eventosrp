@@ -33,6 +33,9 @@ try {
         $userIds[] = (int)$pdo->lastInsertId();
     }
     [$clientA, $clientB, $host] = $userIds;
+    $demoSpace = mysqlTestSpace($pdo, $host, ['is_demo' => 1]);
+    $demoInput = mysqlTestInput($demoSpace, '2030-01-04T09:00', '2030-01-06T09:00', $now);
+    mysqlTestRejects(fn() => createReservation($pdo, $clientA, $demoInput, $now), InvalidArgumentException::class, 'Espaço demonstrativo não pode receber reserva.');
     $space = mysqlTestSpace($pdo, $host);
     $input = mysqlTestInput($space, '2030-01-04T09:00', '2030-01-06T09:00', $now);
     $notAccepted = $input;

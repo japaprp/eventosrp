@@ -31,7 +31,7 @@ function createReservation(PDO $pdo,int $userId,array $input,?DateTimeImmutable 
     try {
         $query=$pdo->prepare('SELECT * FROM spaces WHERE id=? FOR UPDATE');
         $query->execute([$spaceId]);$space=$query->fetch(PDO::FETCH_ASSOC);
-        if(!$space||!$space['active']||$guests>(int)$space['capacity']) {
+        if(!$space||!$space['active']||!empty($space['is_demo'])||$guests>(int)$space['capacity']) {
             throw new InvalidArgumentException('Espaço indisponível ou capacidade inválida.');
         }
         $plan=$input['plan']??'daily';

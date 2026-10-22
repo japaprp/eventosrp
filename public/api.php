@@ -19,7 +19,7 @@ try {
   $image=@getimagesize($path);if(!$image||$image['mime']!=='image/jpeg')respond(['error'=>'Foto inválida.'],404);
   header_remove('Content-Type');header('Content-Type: image/jpeg');header('Cache-Control: public, max-age=31536000, immutable');header('Content-Length: '.filesize($path));header('X-Content-Type-Options: nosniff');header('Content-Disposition: inline; filename="espaco.jpg"');readfile($path);exit;
  }
- if($action==='spaces'&&$method==='GET'){$rows=database()->query('SELECT * FROM spaces WHERE active=1 ORDER BY id DESC')->fetchAll(PDO::FETCH_ASSOC);respond(array_map('publicSpace',$rows));}
+ if($action==='spaces'&&$method==='GET'){$rows=database()->query('SELECT * FROM spaces WHERE active=1 AND is_demo=0 ORDER BY id DESC')->fetchAll(PDO::FETCH_ASSOC);respond(array_map('publicSpace',$rows));}
  if($action==='availability'&&$method==='GET'){
   $checkIn=$_GET['check_in']??'';$checkOut=$_GET['check_out']??'';$plan=$_GET['plan']??'daily';
   if(!is_string($checkIn)||!is_string($checkOut)||!preg_match('/^\d{4}-\d{2}-\d{2}$/',$checkIn)||!preg_match('/^\d{4}-\d{2}-\d{2}$/',$checkOut)||!in_array($plan,['daily','weekend'],true))respond(['error'=>'Informe uma entrada, saída e tipo de reserva válidos.'],422);
@@ -29,7 +29,7 @@ try {
   $startDate=DateTimeImmutable::createFromFormat('!Y-m-d',$checkIn,$zone);$endDate=DateTimeImmutable::createFromFormat('!Y-m-d',$checkOut,$zone);$duration=(int)$startDate->diff($endDate)->days;
   if($duration>30)respond(['error'=>'Para períodos acima de 30 diárias, consulte o atendimento.'],422);
   if($plan==='weekend'&&(!in_array((int)DateTimeImmutable::createFromFormat('!Y-m-d',$checkIn,$zone)->format('w'),[5,6],true)||$duration<2))respond(['error'=>'O pacote exige entrada na sexta ou no sábado e pelo menos 48 horas.'],422);
-  $pdo=database();$rows=$pdo->query('SELECT id,daily_price,weekend_price,check_in_time,check_out_time,minimum_days,cleanup_minutes FROM spaces WHERE active=1')->fetchAll(PDO::FETCH_ASSOC);$available=[];
+  $pdo=database();$rows=$pdo->query('SELECT id,daily_price,weekend_price,check_in_time,check_out_time,minimum_days,cleanup_minutes FROM spaces WHERE active=1 AND is_demo=0')->fetchAll(PDO::FETCH_ASSOC);$available=[];
   foreach($rows as $space){
    try{$quote=spaceReservationQuote($space,$checkIn,$checkOut,$plan);}
    catch(InvalidArgumentException){continue;}
