@@ -109,8 +109,9 @@ function paymentLifecycleReconcileExpiredHoldUnlocked(PDO $pdo, array $reservati
   try{$preferenceDeadline=new DateTimeImmutable((string)$preference['expiration_date_to']);}catch(Throwable){return;}
   if($preferenceDeadline>$now)return;
   if(!paymentLifecycleCanReleaseHold('pending',(string)$fresh['hold_expires_at'],true,$payments,$now))return;
-  $q=$pdo->prepare("UPDATE reservations SET status='expired' WHERE id=? AND status='pending' AND payment_attention='none' AND hold_expires_at<=?");
-  $q->execute([$reservationId,$now->format('Y-m-d H:i:s')]);
+  // The webhook takes the same space-row lock before applying payment state.
+  // Re-read under that lock so a concurrent approval is never overwritten by expiry.
+  paymentLifecycleExpirePendingReservation($pdo,$reservationId,$now);
  }catch(Throwable $e){error_log('Encontro payment reconciliation: '.get_class($e));}
 }
 function paymentLifecycleReconcileOverlappingHolds(PDO $pdo, int $spaceId, string $checkIn, string $blockedUntil): void {
