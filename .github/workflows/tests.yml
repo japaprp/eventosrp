@@ -71,3 +71,5 @@ jobs:
           coverage: none
       - name: Test per-reservation reconciliation lock
         run: php tests/reconciliation_lock_mysql.php
+      - name: Test webhook approval racing expired-hold reconciliation
+        run: php tests/webhook_reconciliation_race_mysql.php
