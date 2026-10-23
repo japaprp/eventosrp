@@ -80,6 +80,14 @@ function paymentLifecycleApplyVerifiedPayment(PDO $pdo, string $reservationId, a
  }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
 }
 function paymentLifecycleReconcileExpiredHold(PDO $pdo, array $reservation): void {
+ $reservationId=(string)($reservation['id']??'');
+ if($reservationId==='')return;
+ paymentLifecycleWithAdvisoryLock($pdo,$reservationId,function()use($pdo,$reservation):void{
+  paymentLifecycleReconcileExpiredHoldUnlocked($pdo,$reservation);
+ });
+}
+
+function paymentLifecycleReconcileExpiredHoldUnlocked(PDO $pdo, array $reservation): void {
  if(($reservation['status']??'')!=='pending'||empty($reservation['hold_expires_at']))return;
  $now=new DateTimeImmutable('now',new DateTimeZone('America/Sao_Paulo'));
  try{$holdDeadline=new DateTimeImmutable((string)$reservation['hold_expires_at'],new DateTimeZone('America/Sao_Paulo'));}catch(Throwable){return;}
@@ -101,8 +109,9 @@ function paymentLifecycleReconcileExpiredHold(PDO $pdo, array $reservation): voi
   try{$preferenceDeadline=new DateTimeImmutable((string)$preference['expiration_date_to']);}catch(Throwable){return;}
   if($preferenceDeadline>$now)return;
   if(!paymentLifecycleCanReleaseHold('pending',(string)$fresh['hold_expires_at'],true,$payments,$now))return;
-  $q=$pdo->prepare("UPDATE reservations SET status='expired' WHERE id=? AND status='pending' AND payment_attention='none' AND hold_expires_at<=?");
-  $q->execute([$reservationId,$now->format('Y-m-d H:i:s')]);
+  // The webhook takes the same space-row lock before applying payment state.
+  // Re-read under that lock so a concurrent approval is never overwritten by expiry.
+  paymentLifecycleExpirePendingReservation($pdo,$reservationId,$now);
  }catch(Throwable $e){error_log('Encontro payment reconciliation: '.get_class($e));}
 }
 function paymentLifecycleReconcileOverlappingHolds(PDO $pdo, int $spaceId, string $checkIn, string $blockedUntil): void {
@@ -128,6 +137,22 @@ try {
   if(!$q->fetchColumn())respond(['received'=>true]);
   try{paymentLifecycleApplyVerifiedPayment($pdo,$reference,$payment);}catch(InvalidArgumentException $e){respond(['error'=>'Pagamento inconsistente.'],400);}
   respond(['received'=>true]);
+ }
+ if($action==='reconcile-expired-holds') {
+  if($method!=='POST')respond(['error'=>'Método não permitido.'],405);
+  $configuredSecret=env('RESERVATION_RECONCILE_SECRET');
+  $providedHeader=$_SERVER['HTTP_AUTHORIZATION']??'';
+  if(strlen($configuredSecret)<32)respond(['error'=>'Reconciliação agendada não configurada.'],503);
+  if(!preg_match('/^Bearer (.+)$/',$providedHeader,$secretMatch)||!hash_equals($configuredSecret,$secretMatch[1]))respond(['error'=>'Não autorizado.'],401);
+  $pdo=database();
+  $now=(new DateTimeImmutable('now',new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
+  $q=$pdo->prepare("SELECT * FROM reservations WHERE status='pending' AND hold_expires_at IS NOT NULL AND hold_expires_at<=? ORDER BY hold_expires_at ASC LIMIT 5");
+  $q->execute([$now]);
+  $due=$q->fetchAll(PDO::FETCH_ASSOC);
+  foreach($due as $reservation)paymentLifecycleReconcileExpiredHold($pdo,$reservation);
+  $remaining=$pdo->prepare("SELECT COUNT(*) FROM reservations WHERE status='pending' AND hold_expires_at IS NOT NULL AND hold_expires_at<=?");
+  $remaining->execute([$now]);
+  respond(['received'=>true,'attempted'=>count($due),'remaining_due'=>(int)$remaining->fetchColumn()]);
  }
  if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations'],true))respond(['error'=>'Rota não encontrada.'],404);
  if((in_array($action,['my-spaces','host-reservations'],true)&&$method!=='GET')||($action==='save-space'&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
