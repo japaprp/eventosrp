@@ -55,4 +55,7 @@ for(const [selector,value] of Object.entries({'#space-name':'Chácara de teste',
 await element('#space-form').onsubmit({preventDefault(){}});
 assert.equal(capturedPayload.daily_price,'1800.50');assert.equal(capturedPayload.weekend_price,null);assert.equal(capturedPayload.check_in_time,'09:00');assert.equal(capturedPayload.minimum_days,1);assert.equal('price' in capturedPayload,false);
 vm.runInContext('user=null;reservation(spaces[0])',context);assert.match(element('#modal-content').innerHTML,/id="auth-form"/);
+context.photosInput='  https://example.test/photo.jpg  \n\nhttps://example.test/two.jpg';
+assert.deepEqual(Array.from(vm.runInContext('parsePhotoUrls(photosInput)',context)),['https://example.test/photo.jpg','https://example.test/two.jpg']);
+for(const photos of ['', 'http://example.test/photo.jpg','javascript:alert(1)','https://user:password@example.test/photo.jpg',Array(6).fill('https://example.test/photo.jpg').join('\n')]){context.invalidPhotos=photos;assert.throws(()=>vm.runInContext('parsePhotoUrls(invalidPhotos)',context));}
 console.log(`${cases.length} cenários de preço/período e verificações de filtros, cadastro, recuperação de senha e formulário de espaços passaram.`);
