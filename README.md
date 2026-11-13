@@ -1,4 +1,4 @@
-# Encontro — locação de espaços
+# Reservas RP — divulgação e locação de espaços
 
 Aplicação responsiva em português, com catálogo público e backend PHP 8.2+, MySQL, Firebase Authentication, Firebase Realtime Database e Mercado Pago Checkout Pro. Não exige uma skill ou extensão adicional.
 
@@ -65,3 +65,7 @@ Use HTTPS, limites de requisições no proxy, backups protegidos e criptografia 
 - [Regras do Realtime Database](https://firebase.google.com/docs/database/security/rules-conditions)
 - [Preferências Checkout Pro](https://www.mercadopago.com.br/developers/pt/reference/online-payments/checkout-pro-preferences/create-preference/post)
 - [Assinaturas de webhooks](https://www.mercadopago.com.br/developers/pt/docs/subscriptions/additional-content/your-integrations/notifications/webhooks)
+
+## Revisão de 13/11/2026
+
+Consulte [a entrega e configuração operacional](docs/ENTREGA_2026-11-13.md) para as correções de anúncios, conta, conversa e checkout, os testes automatizados e as dependências externas ainda necessárias.

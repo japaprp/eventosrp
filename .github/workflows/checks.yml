@@ -1,0 +1,30 @@
+name: Reservas RP checks
+on:
+  push:
+    branches: [main, 'improve/**']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo_sqlite
+          coverage: none
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: node --check public/app.js
+      - run: npm test
+      - run: php tests/booking.php
+      - run: php tests/spaces.php
+      - run: php tests/payments.php
+      - run: find public src tests -name '*.php' -print0 | xargs -0 -n1 php -l
+      - run: npm run test:browser

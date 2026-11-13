@@ -1,0 +1,10 @@
+{
+  "name": "reservas-rp",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/frontend.mjs",
+    "test:browser": "node tests/browser.mjs"
+  },
+  "devDependencies": {"playwright": "1.62.1"}
+}

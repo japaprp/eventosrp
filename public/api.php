@@ -6,26 +6,24 @@ function respondUnavailable(): never { http_response_code(503);echo '{"error":"S
 require dirname(__DIR__).'/src/bootstrap.php';
 require dirname(__DIR__).'/src/booking.php';
 require dirname(__DIR__).'/src/spaces.php';
+require dirname(__DIR__).'/src/payments.php';
 date_default_timezone_set('America/Sao_Paulo');
 try {
  $action=$_GET['action']??'';$method=$_SERVER['REQUEST_METHOD'];
  if($action==='spaces'&&$method==='GET'){$rows=database()->query('SELECT * FROM spaces WHERE active=1 AND is_demo=0 ORDER BY id DESC')->fetchAll(PDO::FETCH_ASSOC);respond(array_map('publicSpace',$rows));}
  if($action==='webhook') {
   if($method!=='POST')respond(['error'=>'Método não permitido.'],405);
-  parse_str($_SERVER['QUERY_STRING']??'',$query);$id=(string)($query['data_id']??'');
-  $parts=[];foreach(explode(',',$_SERVER['HTTP_X_SIGNATURE']??'') as $part){$pair=explode('=',trim($part),2);if(count($pair)===2)$parts[$pair[0]]=$pair[1];}
-  $ts=$parts['ts']??'';$signature=$parts['v1']??'';$request=$_SERVER['HTTP_X_REQUEST_ID']??'';
-  $manifest='id:'.strtolower($id).';request-id:'.$request.';ts:'.$ts.';';
-  if(!env('MP_WEBHOOK_SECRET')||!ctype_digit($id)||!ctype_digit($ts)||!$request||!hash_equals(hash_hmac('sha256',$manifest,env('MP_WEBHOOK_SECRET')),$signature))respond(['error'=>'Assinatura inválida.'],401);
+  $id=webhookPaymentId($_SERVER['QUERY_STRING']??'',$_SERVER['HTTP_X_SIGNATURE']??'',$_SERVER['HTTP_X_REQUEST_ID']??'',env('MP_WEBHOOK_SECRET'));
+  if($id===null)respond(['error'=>'Assinatura inválida.'],401);
   $payment=mp('/v1/payments/'.rawurlencode($id));$reference=$payment['external_reference']??'';
   $pdo=database();$q=$pdo->prepare('SELECT * FROM reservations WHERE id=?');$q->execute([$reference]);$reservation=$q->fetch(PDO::FETCH_ASSOC);
   if(!$reservation)respond(['received'=>true]);
-  if(($payment['currency_id']??'')!=='BRL'||abs((float)$payment['transaction_amount']-(float)$reservation['total'])>0.001)respond(['error'=>'Pagamento inconsistente.'],400);
+  if(!paymentMatchesReservation($payment,$reservation,$id,env('MP_SANDBOX','true')==='true'))respond(['error'=>'Pagamento inconsistente.'],400);
   if(($payment['status']??'')==='approved'){$q=$pdo->prepare("UPDATE reservations SET status='approved',payment_id=? WHERE id=? AND status IN ('creating','pending','approved')");$q->execute([$id,$reference]);}
   respond(['received'=>true]);
  }
- if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations'],true))respond(['error'=>'Rota não encontrada.'],404);
- if((in_array($action,['my-spaces','host-reservations'],true)&&$method!=='GET')||($action==='save-space'&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
+ if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations','chat-access'],true))respond(['error'=>'Rota não encontrada.'],404);
+ if((in_array($action,['my-spaces','host-reservations'],true)&&$method!=='GET')||(in_array($action,['save-space','chat-access'],true)&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
  if(($action==='reserve'&&$method!=='POST')||($action==='reservations'&&$method!=='GET')||($action==='profile'&&!in_array($method,['GET','POST'],true)))respond(['error'=>'Método não permitido.'],405);
  $header=$_SERVER['HTTP_AUTHORIZATION']??'';if(!preg_match('/^Bearer (.+)$/',$header,$match))respond(['error'=>'Entre na sua conta.'],401);
  try{$token=firebase()->createAuth()->verifyIdToken($match[1],true);}catch(Throwable $e){respond(['error'=>'Sessão inválida. Entre novamente.'],401);}
@@ -52,10 +50,21 @@ try {
  }
  if($action==='reservations'){$q=$pdo->prepare('SELECT r.id,r.event_date,r.check_in,r.check_out,r.plan,r.billable_days,r.total,r.status,s.name FROM reservations r JOIN spaces s ON s.id=r.space_id WHERE r.user_id=? ORDER BY r.created_at DESC');$q->execute([$userId]);respond($q->fetchAll(PDO::FETCH_ASSOC));}
  if($action==='profile'&&$method==='GET'){$q=$pdo->prepare('SELECT name,phone FROM users WHERE id=?');$q->execute([$userId]);respond($q->fetch(PDO::FETCH_ASSOC));}
- if($action==='reserve'&&(!env('MP_ACCESS_TOKEN')||!env('MP_WEBHOOK_SECRET')))respond(['error'=>'Pagamentos ainda não configurados.'],503);
+ if($action==='reserve'){
+  $url=rtrim(env('APP_URL'),'/');
+  if(!env('MP_ACCESS_TOKEN')||!env('MP_WEBHOOK_SECRET')||!filter_var($url,FILTER_VALIDATE_URL)||parse_url($url,PHP_URL_SCHEME)!=='https'||parse_url($url,PHP_URL_USER)!==null)respond(['error'=>'Pagamentos ainda não configurados.'],503);
+ }
  if((int)($_SERVER['CONTENT_LENGTH']??0)>12000)respond(['error'=>'Solicitação muito grande.'],413);
  $input=json_decode(file_get_contents('php://input'),true,512,JSON_THROW_ON_ERROR);
  if(!is_array($input))respond(['error'=>'Dados inválidos.'],400);
+ if($action==='chat-access'){
+  $reservationId=$input['reservation_id']??null;
+  if(!is_string($reservationId)||!preg_match('/^[a-f0-9]{32}$/D',$reservationId))respond(['error'=>'Reserva inválida.'],422);
+  $q=$pdo->prepare('SELECT r.id FROM reservations r JOIN spaces s ON s.id=r.space_id WHERE r.id=? AND (r.user_id=? OR s.owner_id=?)');$q->execute([$reservationId,$userId,$userId]);
+  if(!$q->fetchColumn())respond(['error'=>'Conversa não encontrada para esta conta.'],404);
+  firebase()->createDatabase()->getReference('chats/'.$reservationId.'/members/'.$uid)->set(true);
+  respond(['ready'=>true]);
+ }
  $contactName=$input[$action==='profile'?'name':'contact_name']??'';
  $phone=$input['phone']??'';
  if(!is_string($contactName)||strlen(trim($contactName))<2||strlen($contactName)>480||mb_strlen($contactName)>120||!is_string($phone)||strlen($phone)>25||!preg_match('/^(?:55)?[1-9][0-9][0-9]{8,9}$/',preg_replace('/\D/','',$phone)))respond(['error'=>'Informe seu nome e um celular válido com DDD.'],422);
@@ -76,9 +85,12 @@ try {
  try {
   firebase()->createDatabase()->getReference('chats/'.$id.'/members/'.$uid)->set(true);
   if($space['owner_id']){$q=$pdo->prepare('SELECT firebase_uid FROM users WHERE id=?');$q->execute([$space['owner_id']]);$ownerUid=$q->fetchColumn();if($ownerUid)firebase()->createDatabase()->getReference('chats/'.$id.'/members/'.$ownerUid)->set(true);}
-  $url=rtrim(env('APP_URL'),'/');if(!str_starts_with($url,'https://'))throw new RuntimeException('Configure APP_URL com HTTPS para pagamentos.');
-  $preference=mp('/checkout/preferences',['items'=>[['id'=>(string)$spaceId,'title'=>$space['name'].' — '.$quote['check_in'].' a '.$quote['check_out'].' ('.$quote['days'].' diárias)','quantity'=>1,'currency_id'=>'BRL','unit_price'=>(float)$quote['total']]],'external_reference'=>$id,'payer'=>['email'=>$email],'notification_url'=>$url.'/api.php?action=webhook','back_urls'=>['success'=>$url.'/?payment=success','pending'=>$url.'/?payment=pending','failure'=>$url.'/?payment=failure'],'auto_return'=>'approved']);
-  $q=$pdo->prepare("UPDATE reservations SET status='pending',preference_id=? WHERE id=? AND status='creating'");$q->execute([$preference['id'],$id]);
-  respond(['reservation_id'=>$id,'checkout_url'=>$preference[env('MP_SANDBOX','true')==='true'?'sandbox_init_point':'init_point']],201);
- }catch(Throwable $e){$q=$pdo->prepare("UPDATE reservations SET status='failed' WHERE id=? AND status='creating'");$q->execute([$id]);throw $e;}
+ }catch(Throwable $e){error_log('Encontro: chat pendente de configuração para a reserva '.$id);}
+ try {
+  $checkout=startReservationCheckout(fn()=>mp('/checkout/preferences',['items'=>[['id'=>(string)$spaceId,'title'=>$space['name'].' — '.$quote['check_in'].' a '.$quote['check_out'].' ('.$quote['days'].' diárias)','quantity'=>1,'currency_id'=>'BRL','unit_price'=>(float)$quote['total']]],'external_reference'=>$id,'payer'=>['email'=>$email],'notification_url'=>$url.'/api.php?action=webhook','back_urls'=>['success'=>$url.'/?payment=success','pending'=>$url.'/?payment=pending','failure'=>$url.'/?payment=failure'],'auto_return'=>'approved']),fn(string $preferenceId)=>saveReservationPreference($pdo,$id,$preferenceId),env('MP_SANDBOX','true')==='true');
+  respond(['reservation_id'=>$id,...$checkout],201);
+ }catch(Throwable $e){
+  error_log('Encontro: checkout requer conciliação para a reserva '.$id);
+  respond(['error'=>'Não foi possível confirmar o checkout. O período foi mantido reservado para conferência. Consulte Minhas reservas antes de tentar novamente.','reservation_id'=>$id],503);
+ }
 }catch(JsonException $e){respond(['error'=>'Dados inválidos.'],400);}catch(PDOException $e){if(isset($pdo)&&$pdo->inTransaction())$pdo->rollBack();$info=$e->errorInfo;$driverCode=is_array($info)&&isset($info[1])?(string)$info[1]:'n/a';$message=preg_replace('/((?:password|passwd|pwd)\\s*[=:]\\s*)[^;\\s]*/i','$1[redacted]',$e->getMessage())??'diagnostic unavailable';error_log('Encontro API: PDOException SQLSTATE='.$e->getCode().' driver='.$driverCode.' message='.$message);respond(['error'=>'Serviço temporariamente indisponível. Verifique a configuração ou tente novamente.'],503);}catch(Throwable $e){if(isset($pdo)&&$pdo->inTransaction())$pdo->rollBack();error_log('Encontro API: '.get_class($e));respond(['error'=>'Serviço temporariamente indisponível. Verifique a configuração ou tente novamente.'],503);}

@@ -8,3 +8,7 @@
 *.key
 *service-account*.json
 *.log
+
+/node_modules/
+/test-results/
+/playwright-report/
