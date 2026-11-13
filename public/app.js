@@ -31,7 +31,26 @@ function modal(html){if(unsubscribeChat){unsubscribeChat();unsubscribeChat=null}
 $('#modal .close').onclick=()=>$('#modal').close();$('#modal').addEventListener('close',()=>{unsubscribeChat?.();unsubscribeChat=null});$('#modal').addEventListener('click',e=>{if(e.target===$('#modal'))$('#modal').close()});
 $('#search').onclick=()=>{render();$('#espacos').scrollIntoView({behavior:'smooth'})};document.querySelectorAll('.category-tabs button').forEach(b=>b.onclick=()=>{type=b.dataset.type;document.querySelectorAll('.category-tabs button').forEach(i=>i.classList.remove('selected'));b.classList.add('selected');render()});
 $('#cards').onclick=e=>{const f=e.target.closest('[data-favorite]'),d=e.target.closest('[data-detail]');if(f){const id=Number(f.dataset.favorite);favorites=favorites.includes(id)?favorites.filter(i=>i!==id):[...favorites,id];localStorage.setItem('encontro-favorites',JSON.stringify(favorites));render();return}if(d)detail(Number(d.dataset.detail))};
-function detail(id){const s=spaces.find(s=>s.id===id);if(!s)return;modal(`<img class="detail-image" src="${escapeHtml(photo(s,1200))}" alt="${escapeHtml(s.name)}"><span class="eyebrow" style="margin-top:20px">${escapeHtml(s.type)}</span><h2>${escapeHtml(s.name)}</h2><p class="muted">${escapeHtml(s.neighborhood||s.city)}</p><h3>Sobre este espaço</h3><p>${escapeHtml(s.description)}</p><h3>Informações</h3><ul><li>Capacidade: até ${s.capacity} pessoas</li><li>Diária: ${money(s.price)}</li></ul><h3>Comodidades</h3><p>${s.amenities.length?s.amenities.map(escapeHtml).join(', '):'Consulte o host para mais informações'}</p>${s.rules?'<h3>Regras e cancelamento</h3><p>'+escapeHtml(s.rules)+'</p>':''}<button class="primary" id="request-reservation">Solicitar reserva →</button>`);$('#request-reservation').onclick=()=>user?reservation(s):login(()=>reservation(s));}
+function parsePhotoUrls(value){
+  const lines=String(value).split('\n').map(line=>line.trim()).filter(Boolean);
+  if(lines.length<1||lines.length>5)throw new Error('Informe de uma a cinco fotos com links HTTPS.');
+  return lines.map(line=>{let url;try{url=new URL(line)}catch{throw new Error('Confira os links das fotos. Use um link HTTPS por linha.');}
+    if(url.protocol!=='https:'||url.username||url.password||line.length>2048)throw new Error('Use links HTTPS de fotos, sem usuário ou senha no endereço.');
+    return url.href;
+  });
+}
+function detail(id){
+  const s=spaces.find(s=>s.id===id);if(!s)return;
+  let photos;try{photos=parsePhotoUrls((s.photos||[]).join('\n'))}catch{photos=[photo(s,1200)]}
+  modal(`<img id="gallery-main" class="detail-image" src="${escapeHtml(photos[0])}" alt="${escapeHtml(s.name)} — foto 1 de ${photos.length}"><p id="gallery-counter" role="status">Foto 1 de ${photos.length}</p>${photos.length>1?`<div class="photo-gallery" id="photo-thumbnails" role="group" aria-label="Fotos do espaço">${photos.map((url,index)=>`<button type="button" data-photo="${index}" aria-label="Ver foto ${index+1}" aria-pressed="${index===0}"><img src="${escapeHtml(url)}" alt="" loading="lazy"></button>`).join('')}</div>`:''}<span class="eyebrow" style="margin-top:20px">${escapeHtml(s.type)}</span><h2>${escapeHtml(s.name)}</h2><p class="muted">${escapeHtml(s.city)}${s.neighborhood?' · '+escapeHtml(s.neighborhood):''}</p>${s.address?'<p>'+escapeHtml(s.address)+'</p>':''}<h3>Sobre este espaço</h3><p>${escapeHtml(s.description)}</p><h3>Informações</h3><ul><li>Capacidade: até ${s.capacity} pessoas</li><li>Diária: ${money(s.price)}</li>${s.weekendPrice!==null&&s.weekendPrice!==undefined?'<li>Pacote de fim de semana (48h): '+money(s.weekendPrice)+'</li>':''}<li>Entrada às ${escapeHtml(s.checkInTime)} e saída às ${escapeHtml(s.checkOutTime)}, horário de Brasília</li><li>Mínimo de ${s.minimumDays} diária${s.minimumDays===1?'':'s'}</li></ul><h3>Comodidades</h3><p>${s.amenities.length?s.amenities.map(escapeHtml).join(', '):'Consulte o proprietário para mais informações'}</p>${s.rules?'<h3>Regras e cancelamento</h3><p>'+escapeHtml(s.rules)+'</p>':''}<button class="primary" id="request-reservation">Solicitar reserva →</button>`);
+  $('#request-reservation').onclick=()=>user?reservation(s):login(()=>reservation(s));
+  document.querySelectorAll('[data-photo]').forEach(button=>button.onclick=()=>{
+    const index=Number(button.dataset.photo);$('#gallery-main').src=photos[index];$('#gallery-main').alt=s.name+' — foto '+(index+1)+' de '+photos.length;
+    $('#gallery-counter').textContent='Foto '+(index+1)+' de '+photos.length;
+    document.querySelectorAll('[data-photo]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+  });
+}
+
 function login(after) {
   if(user){account('painel');return}
   modal(`<span class="eyebrow">BEM-VINDO AO RESERVAS RP</span><h2 id="auth-title">Entre para reservar.</h2><p id="auth-description">Acesse com seu e-mail e senha.</p>
@@ -253,9 +272,9 @@ function spaceForm(space=null){
    <div class="form-row"><label>Mínimo de diárias<input type="number" id="space-minimum" min="1" max="30" required></label><label>Preparação entre reservas (minutos)<input type="number" id="space-cleanup" min="0" max="1440" required></label></div>
    <p class="notice">Cada diária cobre até 24 horas. Se a saída for mais tarde que a entrada, o período pode gerar uma diária adicional. Esses horários serão exigidos na reserva. O intervalo de preparação ajuda a evitar conflitos entre reservas.</p>
    <fieldset><legend>Comodidades</legend><div class="checkbox-grid">${amenities.map(a=>`<label><input type="checkbox" data-space-amenity value="${a}">${a}</label>`).join('')}</div></fieldset>
-   <label>Fotos — uma URL HTTPS por linha<textarea id="space-photos" placeholder="https://seu-site.com/foto.jpg" required></textarea><small>De uma a cinco fotos. Use imagens autorizadas e links diretos (HTTPS).</small></label>
+   <label>Fotos — uma URL HTTPS por linha<textarea id="space-photos" placeholder="https://seu-site.com/foto.jpg" required></textarea><small>De uma a cinco fotos. Use imagens autorizadas e links diretos (HTTPS). A primeira foto será a capa.</small></label><div id="space-photo-preview" class="photo-preview" aria-live="polite"></div>
    <label>Regras do local e condições de cancelamento<textarea id="space-rules" maxlength="4000" placeholder="Ex.: limite de som, horários, uso da piscina, limpeza e condições de cancelamento..."></textarea></label>
-   <label class="inline-check"><input type="checkbox" id="space-active"> Publicar anúncio e aceitar novas reservas</label>
+   <label class="inline-check"><input type="checkbox" id="space-active"> Publicar anúncio e aceitar novas reservas</label><p class="notice">Desmarque para manter o anúncio pausado. Pausar não exclui as reservas já recebidas.</p>
    <label class="inline-check"><input type="checkbox" required> Sou responsável pelo espaço e tenho autorização para publicar estas informações e imagens.</label>
    <div class="form-error" role="alert"></div><button class="primary" id="save-space">Salvar espaço ↗</button><button class="login" type="button" id="cancel-space">Voltar aos meus espaços</button>
   </form>`);
@@ -264,12 +283,19 @@ function spaceForm(space=null){
   $('#space-active').checked=space?.active??true;
   document.querySelectorAll('[data-space-event]').forEach(e=>e.checked=(space?.events||['Aniversário']).includes(e.value));
   document.querySelectorAll('[data-space-amenity]').forEach(e=>e.checked=(space?.amenities||[]).includes(e.value));
+  function previewPhotos(){
+    const box=$('#space-photo-preview');
+    if(!$('#space-photos').value.trim()){box.textContent='Adicione os links para visualizar as fotos antes de salvar.';return}
+    try{const photos=parsePhotoUrls($('#space-photos').value);box.innerHTML=photos.map((url,index)=>`<figure><img src="${escapeHtml(url)}" alt="Prévia da foto ${index+1}" loading="lazy" referrerpolicy="no-referrer"><figcaption>${index===0?'Capa':'Foto '+(index+1)}</figcaption></figure>`).join('');box.querySelectorAll('img').forEach(img=>img.onerror=()=>{const warning=document.createElement('p');warning.textContent='Não foi possível carregar esta foto. Confira se o link abre uma imagem pública.';img.replaceWith(warning)})}
+    catch(error){box.textContent=error.message}
+  }
+  $('#space-photos').oninput=previewPhotos;previewPhotos();
   $('#cancel-space').onclick=()=>spaceManager();
   $('#space-form').onsubmit=async e=>{
     e.preventDefault();const button=$('#save-space');$('.form-error').textContent='';
-    const payload={id:space?.id??null,name:$('#space-name').value.trim(),city:$('#space-city').value.trim(),neighborhood:$('#space-neighborhood').value.trim(),address:$('#space-address').value.trim(),type:$('#space-type').value,capacity:Number($('#space-capacity').value),description:$('#space-description').value.trim(),daily_price:$('#space-price').value,weekend_price:$('#space-weekend-price').value||null,check_in_time:$('#space-in').value,check_out_time:$('#space-out').value,minimum_days:Number($('#space-minimum').value),cleanup_minutes:Number($('#space-cleanup').value),photos:$('#space-photos').value.split('\n').filter(p=>p.trim()),amenities:[...document.querySelectorAll('[data-space-amenity]:checked')].map(e=>e.value),events:[...document.querySelectorAll('[data-space-event]:checked')].map(e=>e.value),rules:$('#space-rules').value.trim(),active:$('#space-active').checked};
+    const payload={id:space?.id??null,name:$('#space-name').value.trim(),city:$('#space-city').value.trim(),neighborhood:$('#space-neighborhood').value.trim(),address:$('#space-address').value.trim(),type:$('#space-type').value,capacity:Number($('#space-capacity').value),description:$('#space-description').value.trim(),daily_price:$('#space-price').value,weekend_price:$('#space-weekend-price').value||null,check_in_time:$('#space-in').value,check_out_time:$('#space-out').value,minimum_days:Number($('#space-minimum').value),cleanup_minutes:Number($('#space-cleanup').value),photos:[],amenities:[...document.querySelectorAll('[data-space-amenity]:checked')].map(e=>e.value),events:[...document.querySelectorAll('[data-space-event]:checked')].map(e=>e.value),rules:$('#space-rules').value.trim(),active:$('#space-active').checked};
     if(!payload.events.length){$('.form-error').textContent='Selecione pelo menos um tipo de evento.';return}
-    if(!payload.photos.length||payload.photos.length>5||payload.photos.some(p=>{try{return new URL(p).protocol!=='https:'}catch{return true}})){$('.form-error').textContent='Informe de uma a cinco fotos com URLs HTTPS válidas.';return}
+    try{payload.photos=parsePhotoUrls($('#space-photos').value)}catch(error){$('.form-error').textContent=error.message;$('#space-photos').focus?.();return}
     button.disabled=true;
     try{await api('save-space',{method:'POST',body:JSON.stringify(payload)});await refreshCatalogue();toast('Espaço salvo.');await spaceManager()}
     catch(err){$('.form-error').textContent=err.message;button.disabled=false}
