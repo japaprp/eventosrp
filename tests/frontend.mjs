@@ -47,4 +47,12 @@ assert.equal(vm.runInContext("escapeHtml('<img src=x onerror=alert(1)>')",contex
 vm.runInContext("reservation({...spaces[0],checkInTime:'10:00',checkOutTime:'08:00',minimumDays:2})",context);element('#plan').value='weekend';element('#check-in').value='2030-01-04T13:00';element('#check-in').oninput();assert.equal(element('#check-in').value,'2030-01-04T10:00');assert.equal(element('#check-out').value,'2030-01-07T08:00');assert.match(element('#quote').innerHTML,/3 diárias/);
 assert.equal(vm.runInContext("reservationStatus('approved')",context),'Pagamento aprovado');
 assert.equal(vm.runInContext("reservationStatus('creating')",context),'Em conferência — não repita o pagamento');
+let capturedPayload=null;
+context.capturePayload=value=>{capturedPayload=JSON.parse(JSON.stringify(value))};
+context.document.querySelectorAll=selector=>selector==='[data-space-event]:checked'?[{value:'Aniversário'}]:[];
+vm.runInContext("spaceForm();api=async(path,options)=>{if(path==='save-space'){capturePayload(JSON.parse(options.body));return {}}return []}",context);
+for(const [selector,value] of Object.entries({'#space-name':'Chácara de teste','#space-address':'Rua de teste, 1','#space-description':'Área de lazer de teste','#space-price':'1800.50','#space-photos':'https://example.test/foto.jpg','#space-capacity':'150'}))element(selector).value=value;
+await element('#space-form').onsubmit({preventDefault(){}});
+assert.equal(capturedPayload.daily_price,'1800.50');assert.equal(capturedPayload.weekend_price,null);assert.equal(capturedPayload.check_in_time,'09:00');assert.equal(capturedPayload.minimum_days,1);assert.equal('price' in capturedPayload,false);
+vm.runInContext('user=null;reservation(spaces[0])',context);assert.match(element('#modal-content').innerHTML,/id="auth-form"/);
 console.log(`${cases.length} cenários de preço/período e verificações de filtros, cadastro, recuperação de senha e formulário de espaços passaram.`);
