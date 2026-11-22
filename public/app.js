@@ -1,5 +1,6 @@
 import { localDateTime, parseBookingDate, quoteBooking, formatBookingDate } from './booking.mjs';
 let spaces = [];
+let catalogueStatus = 'loading', catalogueRequest = 0;
 const $ = s => document.querySelector(s), money = n => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:0,maximumFractionDigits:2}).format(n);
 const escapeHtml = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const photo = (s,w=800) => {
@@ -22,6 +23,18 @@ function firebaseErrorDetail(error){const parts=[];if(typeof error?.code==='stri
 let favorites;try{favorites=JSON.parse(localStorage.getItem('encontro-favorites')||'[]')}catch{favorites=[]}if(!Array.isArray(favorites))favorites=[];
 function toast(message){$('#toast').textContent=message;$('#toast').style.display='block';setTimeout(()=>$('#toast').style.display='none',3500)}
 function render(){
+  const ready = catalogueStatus === 'ready';
+  $('#catalog-notice').hidden = ready;
+  $('#catalog-message').textContent = catalogueStatus === 'loading'
+    ? 'Carregando espaços…'
+    : 'Não foi possível carregar os espaços agora.';
+  $('#retry-catalogue').hidden = catalogueStatus !== 'unavailable';
+  if (!ready) {
+    $('#count').textContent = '';
+    $('#cards').innerHTML = '';
+    $('#empty').hidden = true;
+    return;
+  }
   const list=spaces.filter(s=>(!type||s.type===type)&&(!$('#location').value||s.city===$('#location').value)&&(!$('#event').value||s.events.includes($('#event').value))&&s.capacity>=Number($('#capacity').value||'0'));
   $('#count').textContent=`${list.length} espaço${list.length===1?'':'s'} encontrado${list.length===1?'':'s'}`;
   $('#empty').hidden=list.length>0||spaces.length===0;
@@ -226,17 +239,38 @@ function passwordReset(email='') {
     catch{$('.form-error').textContent='Não foi possível enviar o link. Confira o e-mail e tente novamente.';button.disabled=false}
   };
 }
-async function refreshCatalogue(){
-  try{
-    const response=await fetch('api.php?action=spaces');if(!response.ok)throw new Error('Catálogo indisponível');
-    const data=await response.json();if(!Array.isArray(data))throw new Error('Catálogo inválido');
-    const samples=new Map(spaces.filter(s=>s.isDemo).map(s=>[s.id,s]));
-    spaces=data.map(s=>{const demo=s.isDemo?samples.get(s.id):null;return {...demo,...s,description:s.description||demo?.description||'',neighborhood:s.neighborhood||demo?.neighborhood||'',photo:s.photo||demo?.photo||'photo-1519167758481-83f550bb49b3',amenities:s.amenities||demo?.amenities||[],rules:s.rules||demo?.rules||''}});
-    const selected=$('#location').value,cities=[...new Set(['Ribeirão Preto',...spaces.map(s=>s.city)])].sort((a,b)=>a.localeCompare(b,'pt-BR'));
-    $('#location').innerHTML='<option value="">Todas as localizações</option>'+cities.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');$('#location').value=cities.includes(selected)?selected:'';
-    $('#catalog-notice').hidden=!spaces.some(s=>s.isDemo);render();
-  }catch{$('#catalog-notice').hidden=false;$('#catalog-notice').textContent='Não foi possível atualizar os espaços. Confira a conexão e tente novamente.';render()}
+async function refreshCatalogue() {
+  const request = ++catalogueRequest;
+  catalogueStatus = 'loading';
+  render();
+  try {
+    const response = await fetch('api.php?action=spaces');
+    if (!response.ok) throw new Error('Catálogo indisponível');
+    const data = await response.json();
+    if (!Array.isArray(data)) throw new Error('Catálogo inválido');
+    if (request !== catalogueRequest) return;
+    spaces = data.map(space => ({
+      ...space,
+      description: space.description || '',
+      neighborhood: space.neighborhood || '',
+      amenities: space.amenities || [],
+      rules: space.rules || '',
+    }));
+    const location = $('#location');
+    const selected = location.value;
+    const cities = [...new Set(['Ribeirão Preto', ...spaces.map(space => space.city)])]
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    location.innerHTML = '<option value="">Todas as localizações</option>'
+      + cities.map(city => `<option value="${escapeHtml(city)}">${escapeHtml(city)}</option>`).join('');
+    location.value = cities.includes(selected) ? selected : '';
+    catalogueStatus = 'ready';
+  } catch {
+    if (request !== catalogueRequest) return;
+    catalogueStatus = 'unavailable';
+  }
+  render();
 }
+$('#retry-catalogue').onclick = refreshCatalogue;
 async function spaceManager(){
   if(!user){login(()=>spaceManager());return}
   modal('<h2>Meus espaços.</h2><div class="panel-actions"><button class="primary" id="new-space">Cadastrar espaço ↗</button><button class="login" id="back-account">Minhas reservas</button></div><div id="owned-spaces">Carregando...</div><h3 style="margin-top:30px">Reservas recebidas</h3><div id="host-reservations">Carregando...</div>');

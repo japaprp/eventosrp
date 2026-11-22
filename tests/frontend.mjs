@@ -20,9 +20,21 @@ const fixtures=[
  {id:2,name:'Salão Ribeirão',city:'Ribeirão Preto',type:'Salão',events:['Corporativo'],capacity:200,price:2300,weekendPrice:null,photos:[],amenities:[],checkInTime:'09:00',checkOutTime:'09:00',minimumDays:1},
  {id:3,name:'Espaço Campinas',city:'Campinas',type:'Corporativo',events:['Corporativo'],capacity:100,price:1200,weekendPrice:null,photos:[],amenities:[],checkInTime:'09:00',checkOutTime:'09:00',minimumDays:1}
 ];
-assert.equal(element('#count').textContent,'0 espaços encontrados');
-assert.match(element('#cards').innerHTML,/Ainda não há espaços publicados/);
-context.fixtures=fixtures;vm.runInContext('spaces=fixtures;render()',context);
+assert.equal(element('#count').textContent, '');
+assert.match(element('#catalog-message').textContent, /Carregando/);
+assert.equal(element('#retry-catalogue').hidden, true);
+await vm.runInContext('refreshCatalogue()', context);
+assert.equal(element('#count').textContent, '');
+assert.equal(element('#cards').innerHTML, '');
+assert.equal(element('#retry-catalogue').hidden, false);
+assert.match(element('#catalog-message').textContent, /Não foi possível/);
+context.fetch = async () => ({ok:true, json:async()=>[]});
+await element('#retry-catalogue').onclick();
+assert.equal(element('#retry-catalogue').hidden, true);
+assert.equal(element('#count').textContent, '0 espaços encontrados');
+assert.match(element('#cards').innerHTML, /Ainda não há espaços publicados/);
+context.fetch = async () => ({ok:true, json:async()=>fixtures});
+await vm.runInContext('refreshCatalogue()', context);
 assert.equal(element('#count').textContent,'3 espaços encontrados');
 element('#location').value='Ribeirão Preto';vm.runInContext('render()',context);assert.equal(element('#count').textContent,'2 espaços encontrados');
 element('#capacity').value='200';vm.runInContext('render()',context);assert.equal(element('#count').textContent,'1 espaço encontrado');
