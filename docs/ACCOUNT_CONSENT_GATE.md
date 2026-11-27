@@ -26,11 +26,12 @@ A primeira implementação foi adicionada à branch `delivery/2026-11-27-product
 
 - `src/account_consent.php` valida versões documentais limitadas e URLs HTTPS sem credenciais ou fragmentos; requisitos ausentes/inválidos retornam configuração indisponível.
 - `database/migrations/010_account_consents.sql` cria tabela de auditoria com FK, unicidade por usuário/versões e índice temporal. O código usa `INSERT IGNORE` e não oferece atualização/exclusão do histórico.
-- `public/api.php` expõe `GET account-consent-requirements`, `GET account-consent-status` e `POST account-consent`; registra timestamp do MySQL e aplica bloqueio centralizado antes de rotas de negócio, inclusive upload de fotos.
+- `public/api.php` expõe `GET account-consent-registration-status` (pré-verificação pública, sem dados documentais), `GET account-consent-requirements`, `GET account-consent-status` e `POST account-consent`; registra timestamp do MySQL e aplica bloqueio centralizado antes de rotas de negócio, inclusive upload de fotos.
+- O cadastro por e-mail consulta a pré-verificação pública antes de criar o usuário Firebase; quando a configuração documental está ausente, a criação é interrompida. No Google, a autenticação pode criar a identidade Firebase antes da verificação, mas a API não libera operações locais/de negócio sem a configuração e o aceite vigentes.
 - `public/app.js` solicita confirmação dos documentos vigentes tanto no login por e-mail/senha quanto no Google; o antigo checkbox que apontava para avisos provisórios foi removido.
 - O adaptador HTTP isolado usa versões e URLs sintéticas `.invalid` somente quando `eventosrpHttpTestMode()` confirma o banco descartável e os demais marcadores de teste.
 
-**Validação automatizada:** seis workflows no HEAD `77da025b0e1bcb2fa66548e7152ac54e8b5bd54e` concluíram PASS: PHP + frontend, regressão geral, HTTP isolado, MySQL booking concurrency, MySQL payment lifecycle e Firebase rules. Os testes HTTP exercitam bloqueio sem aceite, aceite falso, versão antiga, timestamp do servidor e idempotência. A migration foi executada com sucesso em um schema MySQL descartável no CI; não foi aplicada em nenhum banco persistente ou de produção.
+**Validação automatizada:** seis workflows no commit `7435d32b5c57b021af69a0e6e0327735d14abb6b` concluíram PASS: PHP + frontend, regressão geral, HTTP isolado, MySQL booking concurrency, MySQL payment lifecycle e Firebase rules. Os testes HTTP exercitam bloqueio sem aceite, aceite falso, versão antiga, timestamp do servidor e idempotência. A migration foi executada com sucesso em um schema MySQL descartável no CI; não foi aplicada em nenhum banco persistente ou de produção.
 
 ## 4. Contrato e decisões técnicas
 
