@@ -7,7 +7,9 @@ CREATE TABLE users (
     email VARCHAR(254) NOT NULL,
     name VARCHAR(120) NOT NULL DEFAULT '',
     phone VARCHAR(25) NOT NULL DEFAULT '',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    owner_status ENUM('none','pending','approved','rejected') NOT NULL DEFAULT 'none',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX users_owner_status (owner_status, created_at)
 );
 
 CREATE TABLE spaces (
