@@ -38,7 +38,7 @@ if ($requirementsStatus !== 200 || !is_array($requirements) || empty($requiremen
     'accepted_at' => '1900-01-01 00:00:00',
 ]);
 $consent = json_decode($consentBody, true);
-if ($consentStatus !== 200 || !is_array($consent) || ($consent['accepted'] ?? false) !== true || empty($consent['accepted_at'])) {
+if ($consentStatus !== 200 || !is_array($consent) || ($consent['accepted'] ?? false) !== true || empty($consent['accepted_at']) || str_starts_with($consent['accepted_at'], '1900-')) {
     failTest('The account consent endpoint must persist acceptance using server time: ' . $consentBody);
 }
 
