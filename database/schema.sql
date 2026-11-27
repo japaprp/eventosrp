@@ -61,7 +61,7 @@ CREATE TABLE reservations (
     terms_accepted_at DATETIME NULL,
     agreement_snapshot JSON NULL,
     total DECIMAL(10,2) NOT NULL,
-    status ENUM('creating','pending','approved','failed','cancelled','expired') NOT NULL DEFAULT 'creating',
+    status ENUM('creating','requested','confirmed','declined','pending','approved','failed','cancelled','expired') NOT NULL DEFAULT 'creating',
     preference_id VARCHAR(100) NULL,
     payment_id VARCHAR(100) NULL,
     hold_expires_at DATETIME NULL,
