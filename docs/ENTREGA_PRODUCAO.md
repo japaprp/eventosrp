@@ -5,7 +5,7 @@ Atualizado em 27/11/2026. Este documento distingue testes automatizados do pacot
 ## Estado confirmado
 
 - PR #19 está aberto, em draft, na branch `delivery/2026-11-27-production-readiness`; não foi integrado.
-- Cinco workflows concluíram com sucesso no commit `3761388fbdc46f79c8747bf2366ddd0546546ff4`: Tests #120, Isolated HTTP #52, MySQL payment lifecycle #42, MySQL booking concurrency #44 e Reservas RP checks #58. O HEAD atual contém commits posteriores com regras Firebase, testes estáticos dessas regras e alterações documentais; CI no HEAD final está NOT RUN.
+- No HEAD `717a549274e6e95edfab93943a4d3a930ca56ead`, cinco workflows concluíram com sucesso: Tests #160, Isolated HTTP #92, MySQL payment lifecycle #82, MySQL booking concurrency #84 e Reservas RP checks #98. O HTTP isolado validou aprovação de proprietários, reservas sem cobrança e confirmação/recusa; isso não comprova homologação real.
 - Serviço PHP `eventosrp` está configurado no Railway, branch `main`, commit `c1431ba4327bb3f35419a3328ea2bcdb7d966a1c`; estado atual `SLEEPING`, `sleepApplication=true` (Serverless, acorda na próxima requisição). O deployment não contém o PR #19.
 - Serviço MySQL está atualmente `SLEEPING`, com `sleepApplication=true`. O deployment anterior confirmou MySQL 8.4.13 e `ready for connections`, mas o log também mostra shutdown posterior por inatividade; o banco Serverless deve acordar na próxima conexão. O volume original de 500 MB continua anexado em `/var/lib/mysql`.
 - O start command foi ajustado para buffer pool 128 MiB e máximo de 20 conexões.
