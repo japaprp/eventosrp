@@ -1,0 +1,47 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  php-tests:
+    name: PHP unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: curl, mbstring, pdo_mysql
+          coverage: none
+      - name: Lint API and payment lifecycle
+        run: php -l public/api.php && php -l src/payment_lifecycle.php && php -l src/cloudinary.php && php -l src/spaces.php && php -l src/booking.php && php -l public/health.php && php -l public/ready.php
+      - name: Test booking rules
+        run: php tests/booking.php
+      - name: Test space validation
+        run: php tests/spaces.php
+      - name: Test payment lifecycle
+        run: php tests/payment_lifecycle.php
+      - name: Test Cloudinary signing and owner isolation
+        run: php tests/cloudinary.php
+
+  frontend-tests:
+    name: Frontend regression tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Test frontend
+        run: node tests/frontend.mjs

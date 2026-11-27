@@ -1,71 +1,96 @@
-# Reservas RP — divulgação e locação de espaços
+# Reservas RP — locação de espaços
 
-Aplicação responsiva em português, com catálogo público e backend PHP 8.2+, MySQL, Firebase Authentication, Firebase Realtime Database e Mercado Pago Checkout Pro. Não exige uma skill ou extensão adicional.
+Aplicação web em português com catálogo público, cadastro de clientes e proprietários, anúncios individuais, reservas por período, Firebase Authentication/Realtime Database, MySQL, Mercado Pago Checkout Pro e upload de imagens pelo Cloudinary.
 
-## Executar
+## Estado operacional conhecido
 
-1. Instale PHP com extensões PDO MySQL, cURL e mbstring, Composer e MySQL 8.
-2. Execute `composer install` na raiz.
-3. Copie `.env.example` para `.env` e configure os valores.
-4. Importe `database/schema.sql` no MySQL. Os nomes das tabelas são `users`, `spaces` e `reservations`.
-5. Execute `php -S localhost:8080 -t public` e abra http://localhost:8080.
+- O repositório contém a aplicação e testes automatizados.
+- O site hospedado no Render respondeu HTTP 200 na última verificação, mas a rota api.php?action=spaces respondeu HTTP 503 por falha de conexão MySQL.
+- Não declare a aplicação pronta para produção até recuperar o banco, executar as migrações pendentes e validar os fluxos reais.
+- O schema para banco novo não insere espaços demonstrativos. O catálogo público filtra is_demo=1.
+- Não existem avaliações, clientes, depoimentos ou fotos de locais inventados no catálogo.
 
-Se o banco já foi criado pela primeira versão, **não reimporte o schema**: aplique uma vez `database/migrations/002_booking_periods.sql`, após backup. Ela acrescenta os campos sem apagar usuários ou reservas. Reservas antigas passam a bloquear o dia inteiro. Se os IDs 7 ou 8 já estiverem ocupados por espaços reais, ajuste os exemplos e o catálogo para evitar divergência; a migração não substitui esses registros.
+## Executar localmente
 
-Depois, aplique uma vez `database/migrations/003_space_management.sql` para habilitar anúncios com proprietário, fotos, horários e preparação entre reservas. Bancos novos devem importar apenas o `schema.sql` atualizado. As migrações não foram executadas neste computador, que não possui MySQL configurado.
+1. Instale PHP 8.2+ com extensões PDO MySQL, cURL e mbstring, Composer e MySQL 8.
+2. Execute composer install.
+3. Copie .env.example para .env e configure os valores privados.
+4. Para um banco novo, importe database/schema.sql.
+5. Execute php -S localhost:8080 -t public e abra http://localhost:8080.
 
-Para visualizar apenas o catálogo, abra `public/index.html` ou sirva a pasta `public` com qualquer servidor estático. Login e API dependem do PHP e das credenciais.
+Não reimporte o schema em banco existente. Faça backup e aplique, uma única vez, as migrações pendentes em ordem: 002_booking_periods.sql, 003_space_management.sql, 004_reservation_agreement.sql, 005_payment_lifecycle.sql, 006_space_authorization.sql e 007_hide_demo_spaces.sql. Confirme o estado de cada tabela antes de executar. As migrações não foram aplicadas em produção nesta entrega.
 
-## Integrações
+## Variáveis privadas
 
-- Firebase: habilite e-mail/senha no Authentication, autorize o domínio, preencha os valores públicos `FIREBASE_*` e mantenha o JSON da conta de serviço **fora de public**, apontado por `FIREBASE_CREDENTIALS`. Publique `firebase.rules.json` nas regras do Realtime Database. A API cria a associação entre a reserva e o titular; somente titular e atendentes com claim `admin` acessam o chat.
-- Mercado Pago: configure token e segredo do webhook. Use `APP_URL` HTTPS acessível externamente e webhook `https://seu-dominio/api.php?action=webhook`. Use evento de pagamento. O backend valida HMAC e consulta o pagamento na API antes de confirmar valor e moeda. `MP_SANDBOX=true` seleciona checkout de teste. Teste com contas e credenciais de teste antes de habilitar produção.
-- MySQL: use usuário de aplicação com privilégios mínimos. Credenciais não são enviadas ao navegador. Consultas são parametrizadas e reservas são consultadas por titular autenticado.
+- MySQL: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD e, quando o provedor exigir CA privada, DB_SSL_CA.
+- Firebase: FIREBASE_CREDENTIALS_JSON (JSON completo da conta de serviço) ou FIREBASE_CREDENTIALS (caminho privado para o arquivo JSON), além das variáveis públicas FIREBASE_*.
+- Mercado Pago: MP_ACCESS_TOKEN, MP_WEBHOOK_SECRET, MP_SANDBOX, APP_URL.
+- Cloudinary: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET.
+- Conciliação agendada: RESERVATION_RECONCILE_SECRET (mínimo 32 caracteres aleatórios).
 
-## Fluxos implementados
+Nunca coloque segredos em public/, no JavaScript, no repositório ou em mensagens. O frontend recebe somente URLs de imagens e configurações públicas do Firebase.
 
-Filtros combinados por localização, evento, capacidade e categoria; favoritos locais; modal de detalhes; criação de conta, login, recuperação de senha e logout; formulário de reserva; bloqueio concorrente por espaço e data; checkout; confirmação por webhook; painel de reservas do titular; chat por reserva; FAQ e minutas legais. Não há avaliações inventadas.
+## Cadastro de clientes e proprietários
 
-Ribeirão Preto está disponível no filtro, com dois espaços demonstrativos. O cadastro solicita nome, celular com DDD, e-mail e senha; nome e celular são reutilizados na próxima reserva e armazenados em perfil acessível apenas ao titular.
+O cadastro e o login são feitos pelo Firebase Authentication. O backend valida o ID token antes de acessar dados privados. O perfil de nome e telefone é sincronizado com MySQL no primeiro acesso autenticado à API; se o banco estiver indisponível, a conta Firebase pode existir, mas o perfil e as reservas não estarão operacionais até a recuperação do banco.
 
-### Entrada, saída e pacotes
+O proprietário pode cadastrar mais de um espaço na mesma conta. Cada anúncio possui id e calendário de reservas próprios. A API filtra por owner_id e verifica a titularidade antes de permitir edição. O formulário não preenche cidade, capacidade, preços, tipo ou horários com valores fictícios. O anúncio começa pausado; o proprietário precisa confirmar os dados e publicar.
 
-Reservas informam entrada e saída com data e horário de Brasília. Uma diária corresponde a até 24 horas; qualquer fração adicional conta como outra diária. O pacote de fim de semana exige entrada na sexta ou no sábado e no mínimo 48 horas. `spaces.weekend_price` define o preço das primeiras duas diárias; quando é NULL, usa duas vezes `daily_price`. Cada diária adicional usa `daily_price`. Não há desconto implícito. O catálogo pode informar `weekendPrice` para refletir uma tarifa especial; mantenha esse valor sincronizado com o banco. O formulário apresenta uma estimativa, enquanto o backend calcula o total com os preços do MySQL e envia esse total ao Mercado Pago. O limite online é 30 diárias; períodos maiores precisam de atendimento.
+A declaração de responsabilidade/autorização do proprietário é obrigatória e fica registrada no MySQL com data/hora e versão do texto.
 
-O bloqueio verifica sobreposição de todo o intervalo, com trava por espaço durante a criação, incluindo o tempo de preparação configurado. O painel mostra entrada, saída, plano e quantidade de diárias. O chat depende das credenciais e regras Firebase para operar.
+## Fotos dos espaços
 
-### Cadastro de espaços e recuperação de senha
+O formulário permite selecionar imagens do dispositivo. O navegador otimiza a imagem para JPEG e o backend valida o arquivo e o envia ao Cloudinary. Cada foto é guardada em uma pasta vinculada ao hash da conta Firebase do proprietário. A API não aceita que uma conta utilize URLs Cloudinary de outra conta. O limite atual é cinco fotos por anúncio, até 2 MB cada após otimização.
 
-Use **Anunciar espaço** no topo ou **Meus espaços e reservas recebidas** no Painel. Qualquer usuário autenticado pode cadastrar anúncios e editar somente os seus. O cadastro inclui nome, cidade, bairro, endereço público, capacidade, descrição, eventos permitidos, diária, pacote opcional, horários obrigatórios de entrada e saída, mínimo de diárias, comodidades, fotos por URLs HTTPS (até cinco) e regras/cancelamento. O proprietário pode pausar o anúncio sem excluir reservas. Não há upload de arquivos nesta versão.
+Configure as três variáveis CLOUDINARY_* no serviço PHP antes de habilitar o upload. Se estiverem ausentes, o endpoint responde indisponível; não há fallback para fotografias de demonstração. Imagens antigas hospedadas em URLs HTTPS externas podem permanecer nos anúncios existentes, mas novos uploads devem usar o formulário.
 
-O catálogo público passa a ler os anúncios ativos do MySQL; sem backend, permanece no modo demonstrativo. Os dados publicados são tratados como texto no navegador. Horários e mínimo de diárias são validados também na API. O tempo de preparação informado pelo proprietário bloqueia novas entradas após a saída, sem aumentar o preço; zero permite entrada exatamente na saída anterior. Reservas existentes preservam o intervalo de preparação gravado no momento da contratação.
+Fotos removidas de um anúncio são excluídas do Cloudinary somente depois de confirmar que não estão associadas a outro anúncio do mesmo proprietário. Falhas de limpeza são registradas e não apagam imagens pertencentes a outros proprietários.
 
-O proprietário vê suas reservas recebidas e é incluído na conversa Firebase das novas reservas, junto com o cliente. Os pagamentos continuam direcionados à conta Mercado Pago da plataforma: não há repasse automático ou split para proprietários. Antes de operar como marketplace, estabeleça o fluxo de repasses e as condições comerciais. Anúncios de demonstração não pertencem a usuários cadastrados.
+## Reservas e pagamentos
 
-**Esqueci minha senha** abre um formulário separado que exige apenas e-mail. O Firebase envia o link e fornece a página para definir a nova senha. Configure o template, domínio autorizado e proteção contra enumeração de e-mails no Firebase. O aplicativo apresenta uma mensagem genérica de confirmação.
+- O servidor calcula o preço usando o MySQL; o navegador apresenta apenas uma estimativa.
+- Uma diária cobre até 24 horas; fração adicional conta como nova diária. O pacote de fim de semana exige entrada na sexta ou no sábado e pelo menos 48 horas.
+- A criação usa transação e bloqueio da linha do espaço para impedir reservas simultâneas sobrepostas.
+- O backend exige aceite explícito das condições e grava versão, data/hora e snapshot dos preços, datas, regras e capacidade aceitos. Dados pessoais de contato não são duplicados no snapshot.
+- O webhook valida assinatura, referência, moeda, valor e modo de operação antes de atualizar a reserva.
+- O ciclo de pagamentos registra eventos idempotentes, preserva reservas aprovadas e mantém bloqueios quando o estado do provedor é desconhecido.
+- O workflow de conciliação pode tentar até cinco reservas por execução: reservas pendentes vencidas e tentativas de checkout que ficaram em creating sem preferência por 15 minutos, mas só funciona depois de configurar EVENTOSRP_API_URL e RESERVATION_RECONCILE_SECRET nos secrets do GitHub Actions e o mesmo segredo no servidor. Sem isso, ele não chama a API.
+- Não existe reembolso automático, split, comissão ou repasse automático aos proprietários. Exceções de reembolso, contestação e chargeback exigem atendimento manual.
+- O registro de aceite melhora a rastreabilidade, mas não é apresentado como assinatura eletrônica formal nem substitui revisão jurídica.
 
-### Verificação
+## Dados demonstrativos e privacidade
 
-Execute `node tests/frontend.mjs` e `php tests/booking.php`. Os testes verificam Ribeirão Preto, filtros combinados, formulário de cadastro, pré-preenchimento de contato, estimativa, regras de diárias/pacotes, datas inválidas e sobreposição. Testes de login, MySQL, chat e checkout reais dependem de serviços configurados.
+O catálogo público não apresenta espaços is_demo=1. O schema de banco novo e a migração 002 não inserem espaços fictícios. A migração 007 pausa registros demonstrativos existentes sem apagá-los. Não execute exclusões de dados sem backup e conferência prévia.
 
-Execute também `php tests/spaces.php`, com mbstring habilitado, para validar preços, fotos, capacidade, horários, mínimos e demais campos dos anúncios. Os testes frontend verificam o formulário de espaços e o envio da recuperação de senha com Firebase simulado; envio real de e-mail depende da configuração.
+O site usa uma ilustração abstrata no hero e um placeholder identificado quando um anúncio ainda não possui foto. Não usa fotografias de banco de imagens como se fossem fotos de espaços cadastrados. Dados de clientes e proprietários devem ser coletados apenas para as funções necessárias; a política e os termos gerais ainda precisam receber a identificação real da operadora, canais de contato, retenção de dados, regras de cancelamento e revisão jurídica.
 
-## Antes de publicar
+## Saúde da aplicação
 
-O catálogo inicial contém **dados de demonstração e fotografias ilustrativas do Unsplash**, sem relação comprovada com os locais descritos. Substitua por anúncios reais usando o cadastro e remova ou pause os exemplos no banco antes de publicar. Em operação, o catálogo e as reservas usam preços e capacidade do MySQL.
+- GET /health.php verifica somente se o processo PHP responde (liveness).
+- GET /ready.php executa SELECT 1 no MySQL e responde 503 se o banco não estiver disponível (readiness).
+- No Render, configurar o health check como /health.php após a publicação do pacote. Use /ready.php para diagnóstico, não como health check de reinício.
 
-Adapte as minutas legais com dados da operadora, canal de privacidade, retenção e condições de cancelamento reais. Cancelamentos/reembolsos e administração de espaços são atendidos operacionalmente, não têm automação nesta versão. Reservas pendentes bloqueiam a data até conciliação operacional; não há expiração automática. Implemente essa rotina antes de operar em escala, sem liberar uma data cujo checkout ainda possa receber pagamento.
+## Testes
 
-Use HTTPS, limites de requisições no proxy, backups protegidos e criptografia de disco no servidor/MySQL. Criptografia em repouso depende da infraestrutura; esta versão não implementa criptografia de campos. A plataforma não coleta número de cartão. O retorno do checkout nunca é usado para confirmar pagamento. Dependências e serviços externos precisam de conectividade. Configure monitoramento e rotina de conciliação de webhooks/pagamentos. Os dados de contato são acessíveis apenas à API autenticada e ao banco protegido.
+    node tests/frontend.mjs
+    php tests/booking.php
+    php tests/spaces.php
+    php tests/cloudinary.php
+    php tests/payment_lifecycle.php
 
-## Referências
+Os workflows do GitHub também executam testes com MySQL descartável para concorrência HTTP, bloqueio de reconciliação e corrida entre webhook e expiração. Esses testes usam fixtures explicitamente isoladas; não criam clientes nem anúncios na produção.
 
-- [Verificação de tokens Firebase](https://firebase.google.com/docs/auth/admin/verify-id-tokens)
-- [Cadastro e atualização de perfil Firebase](https://firebase.google.com/docs/auth/web/manage-users)
-- [Regras do Realtime Database](https://firebase.google.com/docs/database/security/rules-conditions)
-- [Preferências Checkout Pro](https://www.mercadopago.com.br/developers/pt/reference/online-payments/checkout-pro-preferences/create-preference/post)
-- [Assinaturas de webhooks](https://www.mercadopago.com.br/developers/pt/docs/subscriptions/additional-content/your-integrations/notifications/webhooks)
+## Referências de configuração
 
-## Revisão de 13/11/2026
+- Firebase ID tokens: https://firebase.google.com/docs/auth/admin/verify-id-tokens
+- Firebase Authentication: https://firebase.google.com/docs/auth/web/manage-users
+- Firebase Realtime Database rules: https://firebase.google.com/docs/database/security
+- Mercado Pago Checkout Pro: https://www.mercadopago.com.br/developers/pt/docs/checkout-pro/landing
+- Mercado Pago Webhooks: https://www.mercadopago.com.br/developers/pt/docs/your-integrations/notifications/webhooks
+- Cloudinary Upload API: https://cloudinary.com/documentation/image_upload_api_reference
+- Cloudinary PHP upload: https://cloudinary.com/documentation/php_image_and_video_upload
 
-Consulte [a entrega e configuração operacional](docs/ENTREGA_2026-11-13.md) para as correções de anúncios, conta, conversa e checkout, os testes automatizados e as dependências externas ainda necessárias.
+
+## Checklist de liberação
+
+Consulte docs/ENTREGA_PRODUCAO.md e docs/LEGAL_OPERATIONS_RELEASE_CHECKLIST.md antes da abertura pública. O endpoint de reconciliação e o workflow agendado estão preparados, mas permanecem inativos até a configuração do segredo privado.

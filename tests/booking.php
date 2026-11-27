@@ -1,26 +1,49 @@
 <?php
 declare(strict_types=1);
-require dirname(__DIR__).'/src/booking.php';
+require dirname(__DIR__) . '/src/booking.php';
+
 $now = new DateTimeImmutable('2026-10-01T08:00:00-03:00');
-$cases = json_decode(file_get_contents(__DIR__.'/booking-cases.json'),true,512,JSON_THROW_ON_ERROR);
+$cases = json_decode(file_get_contents(__DIR__ . '/booking-cases.json'), true, 512, JSON_THROW_ON_ERROR);
 foreach ($cases as $case) {
     try {
-        $result = bookingQuote($case['start'],$case['end'],$case['plan'],$case['daily'],$case['weekend'],$now);
-        if (!empty($case['error'])) throw new RuntimeException('Deveria rejeitar: '.$case['label']);
-        if ($result['days'] !== $case['days'] || $result['total'] !== $case['total']) throw new RuntimeException('Valor incorreto: '.$case['label']);
+        $result = bookingQuote($case['start'], $case['end'], $case['plan'], $case['daily'], $case['weekend'], $now);
+        if (!empty($case['error'])) throw new RuntimeException('Deveria rejeitar: ' . $case['label']);
+        if ($result['days'] !== $case['days'] || $result['total'] !== $case['total']) throw new RuntimeException('Valor incorreto: ' . $case['label']);
     } catch (InvalidArgumentException $e) {
-        if (empty($case['error'])) throw new RuntimeException('Rejeição inesperada: '.$case['label'],0,$e);
+        if (empty($case['error'])) throw new RuntimeException('Rejeição inesperada: ' . $case['label'], 0, $e);
     }
 }
 $overlaps = [
- ['2026-10-02 09:00:00','2026-10-04 09:00:00','2026-10-03 09:00:00','2026-10-05 09:00:00',true],
- ['2026-10-02 09:00:00','2026-10-04 09:00:00','2026-10-02 10:00:00','2026-10-02 18:00:00',true],
- ['2026-10-02 09:00:00','2026-10-04 09:00:00','2026-10-01 09:00:00','2026-10-05 09:00:00',true],
- ['2026-10-02 09:00:00','2026-10-04 09:00:00','2026-10-04 09:00:00','2026-10-05 09:00:00',false],
- ['2026-10-02 09:00:00','2026-10-04 09:00:00','2026-10-01 09:00:00','2026-10-02 09:00:00',false],
- ['2026-10-02 09:00:00','2026-10-04 09:00:00','2026-10-05 09:00:00','2026-10-06 09:00:00',false]
+    ['2026-10-02 09:00:00','2026-10-04 09:00:00','2026-10-03 09:00:00','2026-10-05 09:00:00',true],
+    ['2026-10-02 09:00:00','2026-10-04 09:00:00','2026-10-02 10:00:00','2026-10-02 18:00:00',true],
+    ['2026-10-02 09:00:00','2026-10-04 09:00:00','2026-10-01 09:00:00','2026-10-05 09:00:00',true],
+    ['2026-10-02 09:00:00','2026-10-04 09:00:00','2026-10-04 09:00:00','2026-10-05 09:00:00',false],
+    ['2026-10-02 09:00:00','2026-10-04 09:00:00','2026-10-01 09:00:00','2026-10-02 09:00:00',false],
+    ['2026-10-02 09:00:00','2026-10-04 09:00:00','2026-10-05 09:00:00','2026-10-06 09:00:00',false],
 ];
-foreach ($overlaps as [$a,$b,$c,$d,$expected]) {
-    if (bookingOverlaps($a,$b,$c,$d) !== $expected) throw new RuntimeException('Conflito de intervalo incorreto.');
+foreach ($overlaps as [$a, $b, $c, $d, $expected]) {
+    if (bookingOverlaps($a, $b, $c, $d) !== $expected) throw new RuntimeException('Conflito de intervalo incorreto.');
 }
-echo count($cases)." testes de período/preço e ".count($overlaps)." testes de sobreposição passaram.\n";
+$space = [
+    'id' => 12, 'name' => 'Chácara Teste', 'address' => 'Rua Exemplo, 10', 'city' => 'Ribeirão Preto',
+    'rules' => 'Sem som após 22h. Cancelamento conforme política publicada.', 'capacity' => 30,
+    'daily_price' => '1000.00', 'weekend_price' => null, 'check_in_time' => '09:00:00',
+    'check_out_time' => '09:00:00', 'minimum_days' => 1, 'cleanup_minutes' => 0,
+];
+$quote = ['check_in' => '2026-10-02 09:00:00', 'check_out' => '2026-10-04 09:00:00', 'days' => 2, 'total' => '2000.00'];
+$reservation = ['plan' => 'daily', 'guests' => 30, 'contact_name' => 'Nome privado', 'phone' => '16999999999', 'message' => 'Mensagem privada'];
+$snapshot = json_decode(reservationAgreementSnapshot($space, $quote, $reservation, RESERVATION_TERMS_VERSION), true, 512, JSON_THROW_ON_ERROR);
+if ($snapshot['version'] !== RESERVATION_TERMS_VERSION || $snapshot['space']['rules_and_cancellation'] !== $space['rules'] || $snapshot['reservation']['total_brl'] !== '2000.00' || $snapshot['reservation']['guests'] !== 30) {
+    throw new RuntimeException('Snapshot do aceite não preservou os dados essenciais.');
+}
+if ($snapshot['platform_terms'] !== RESERVATION_PLATFORM_TERMS) throw new RuntimeException('Os termos registrados divergem da versão apresentada ao usuário.');
+if (isset($snapshot['reservation']['contact_name']) || isset($snapshot['reservation']['phone']) || isset($snapshot['reservation']['message'])) {
+    throw new RuntimeException('O snapshot duplicou dados pessoais desnecessários.');
+}
+$spaceWithoutRules = $space;
+$spaceWithoutRules['rules'] = '';
+$fallback = json_decode(reservationAgreementSnapshot($spaceWithoutRules, $quote, $reservation, RESERVATION_TERMS_VERSION), true, 512, JSON_THROW_ON_ERROR);
+if ($fallback['space']['rules_and_cancellation'] !== 'O proprietário ainda não cadastrou regras específicas; confirme-as diretamente antes de pagar.') {
+    throw new RuntimeException('Snapshot não preservou o aviso quando o espaço não tem regras cadastradas.');
+}
+echo count($cases) . ' testes de período/preço, ' . count($overlaps) . ' testes de sobreposição e 1 teste de snapshot do aceite passaram.' . PHP_EOL;

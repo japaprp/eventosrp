@@ -1,0 +1,41 @@
+name: Reservation payment reconciliation
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile:
+    name: Reconcile expired reservation holds
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Reconcile due holds through the authenticated API
+        env:
+          EVENTOSRP_API_URL: ${{ secrets.EVENTOSRP_API_URL }}
+          RESERVATION_RECONCILE_SECRET: ${{ secrets.RESERVATION_RECONCILE_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${EVENTOSRP_API_URL}" || -z "${RESERVATION_RECONCILE_SECRET}" ]]; then
+            echo "::notice::Reconciliation skipped: configure EVENTOSRP_API_URL and RESERVATION_RECONCILE_SECRET in repository Actions secrets."
+            exit 0
+          fi
+          API_URL="${EVENTOSRP_API_URL%/}"
+          case "${API_URL}" in
+            https://*) ;;
+            *) echo "::error::EVENTOSRP_API_URL must use HTTPS."; exit 1 ;;
+          esac
+          if [[ ${#RESERVATION_RECONCILE_SECRET} -lt 32 ]]; then
+            echo "::error::RESERVATION_RECONCILE_SECRET must contain at least 32 characters."; exit 1
+          fi
+          curl --fail --silent --show-error --max-time 240 \
+            --request POST "${API_URL}/api.php?action=reconcile-expired-holds" \
+            --header "Authorization: Bearer ${RESERVATION_RECONCILE_SECRET}" \
+            --header "Content-Type: application/json" \
+            --data '{}'
+          echo
