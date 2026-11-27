@@ -1,5 +1,62 @@
 # Continuidade da plataforma Encontro
 
+## Atualização prioritária — 27/11/2026, 20:38 UTC
+
+Esta atualização prevalece sobre notas históricas abaixo.
+
+- PR #20 foi integrado no commit `ede73868a5518e90400e52ba850da3a94d7a197f` e publicado no Railway no deployment `f6339668-91a3-4549-8b5e-537fa914a050` (**SUCCESS**). Serviço PHP online, uma réplica, sem falhas recentes.
+- O site público não usa mais fotos Unsplash ou avatares de demonstração. O hero é uma ilustração abstrata, as fotos ausentes são identificadas, e as localidades vêm apenas dos anúncios publicados.
+- PR #19 foi sincronizado com main pelo merge commit `105ea58c53ff96fcd2183f0307ae993903c2f003`; permanece draft, aberto e mergeable=true. Os cinco workflows no novo HEAD passaram: Tests #165, HTTP #97, MySQL booking #89, MySQL payment lifecycle #87 e Reservas RP checks #105.
+- MySQL está `SLEEPING`, volume original de 500 MB preservado. As ferramentas de banco não estão habilitadas; handshake, consulta, inventário, backup lógico e restore continuam BLOCKED/NOT RUN. Não foi executada migration nem exclusão.
+- O usuário informou que não há clientes; isso não pôde ser verificado no banco nesta sessão. Não presumir que o volume esteja vazio.
+- Smoke test HTTP público pós-deploy: NOT RUN/BLOCKED pelo acesso DNS do ambiente de verificação. Deploy SUCCESS não prova reserva real.
+- Não ativar pagamentos nem abrir comercialmente antes de homologar banco, Firebase, Cloudinary, cadastro/aceite, termos finais e operação de atendimento.
+
+
+## Estado atual verificado — 27/11/2026
+
+Esta seção prevalece sobre notas históricas abaixo quando houver divergência de status. O repositório é `japaprp/eventosrp`; o trabalho de entrega está isolado em `delivery/2026-11-27-production-readiness`, PR #19 aberto e em rascunho. Nenhuma alteração foi feita em `main`; o deployment Railway observado continua apontando para `main`, commit `c1431ba4327bb3f35419a3328ea2bcdb7d966a1c`.
+
+### Código e testes
+- O pacote atual inclui cadastro de múltiplos espaços, aprovação administrativa de proprietários, fotos via upload assinado Cloudinary, solicitações de reserva sem cobrança por padrão, confirmação/recusa pelo proprietário, aceite das condições da reserva, ciclo de pagamentos desativado por configuração, reconciliação, endpoints health/readiness e retry PDO limitado.
+- No HEAD `717a549274e6e95edfab93943a4d3a930ca56ead`, Tests #160, Isolated HTTP #92, MySQL booking concurrency #84, MySQL payment lifecycle #82 e Reservas RP checks #98 concluíram PASS. O HTTP validou owner approval, isolamento e solicitações sem cobrança.
+- O workflow HTTP também validou `database/preflight_readonly.sql`, os endpoints `/health.php` e `/ready.php), isolamento de três espaços por proprietário e proteção contra configuração insegura de teste.
+- Os últimos commits de documentação não alteram código de produção.
+- Não há anúncio real cadastrado ou foto real do proprietário fornecida. O catálogo deve permanecer vazio até haver cadastro real e autorizado.
+
+### Banco e infraestrutura
+- O serviço MySQL Railway permanece no projeto `zealous-creativity`, com volume original `mysql-volume` de 500 MB montado em `/var/lib/mysql`. O deployment foi observado em `SLEEPING` com Serverless; o log histórico confirma MySQL 8.4.13 e `ready for connections`, mas não autenticação atual.
+- O start command já foi ajustado para buffer pool 128 MiB e máximo de 20 conexões. Não houve alteração de volume.
+- O proxy TCP `switchyard.proxy.rlwy.net:48927` está ativo e encaminha para 3306; handshake autenticado e `SELECT 1` seguem BLOCKED/NOT RUN.
+- Backup lógico, SHA-256 e restauração isolada ainda não foram realizados. Não executar migrations sem backup restaurável e autorização.
+- Aiven não pôde ser inventariado porque o conector retornou erro interno.
+- Cloudinary está no plano Free, com 0,17/25 créditos usados e 64 assets de amostra; a busca por prefixo `eventosrp` retornou zero. Nenhuma imagem de amostra foi reutilizada.
+- Cloudflare não tem zona/domínio cadastrado na conta consultada. Nenhum bucket R2 foi criado. WAF/proxy de borda permanece indisponível até existir domínio próprio; RLS/Hyperdrive não se aplica ao MySQL atual.
+
+### Pendências comerciais e legais
+- As variáveis privadas do Cloudinary e Firebase precisam de homologação nos ambientes reais. Pagamentos permanecem desativados por padrão em `RESERVATIONS_PAYMENT_MODE=request` e só devem ser habilitados na última etapa.
+- O checkbox de termos no cadastro de conta é validado no navegador, mas seu aceite não é persistido pelo backend; login Google também não registra esse aceite.
+- Os textos de termos e privacidade exibidos atualmente são resumos provisórios, não documentos legais completos. Faltam dados da operadora, canal do titular, retenção, bases legais, transferências internacionais, cancelamentos e fluxo de exclusão.
+- Não há split ou repasse automático. Reembolsos, chargebacks e contingências exigem processo operacional definido.
+- O health check do Render está vazio. Configurar `/health.php` somente depois de publicar a branch; usar `/ready.php` apenas para diagnóstico de MySQL, não como health check de reinício.
+
+### Próximas etapas obrigatórias
+1. Confirmar no Railway plano Free/Trial e crédito de uso restante; sem upgrade.
+2. Se a execução puder ocorrer dentro do limite gratuito, revisar e aplicar o único patch staged para iniciar o MySQL com memória compatível.
+3. Fazer backup lógico, SHA-256 e restauração em banco descartável; executar `database/preflight_readonly.sql`.
+4. Inspecionar schema real e comparar com migrations 002–009; aplicar somente as ausentes, depois do backup restaurável e autorização.
+5. Corrigir/confirmar host e porta pública do Railway no Render; validar `SELECT 1` e catálogo.
+6. Configurar `PLATFORM_ADMIN_FIREBASE_UID` no ambiente privado, homologar Firebase Emulator/projeto correto e Cloudinary sem expor segredos; manter Mercado Pago para a última etapa.
+7. Completar dados da operadora e textos legais, persistir aceite da conta e cadastrar pelo menos um espaço real com fotos autorizadas.
+8. Só então revisar release, merge e deploy mediante autorização específica.
+
+### Preservação do checkout local
+O checkout local em `C:\Users\AMORIM\Documents\Council-Portfolio-Checkouts\eventosrp` está divergente do branch remoto e contém alterações locais não commitadas. Não executar reset, checkout forçado ou limpeza. O PR remoto é a fonte de verdade até reconciliar o checkout com backup das alterações locais.
+
+**Estado de release: NO-GO / BLOCKED por indisponibilidade do MySQL e pendências de configuração/legal.** Nenhuma migração, merge, deploy, exclusão de dados, alteração de segredos ou upgrade pago foi executado.
+
+---
+
 Atualizado em 10/10/2026. Repositório: https://github.com/japaprp/eventosrp.
 
 ## Estado desta entrega

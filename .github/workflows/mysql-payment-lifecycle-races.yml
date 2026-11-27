@@ -1,0 +1,46 @@
+name: MySQL payment lifecycle race tests
+
+on:
+  pull_request:
+    paths:
+      - 'src/payment_lifecycle.php'
+      - 'tests/reconciliation_lock_mysql.php'
+      - 'tests/webhook_reconciliation_race_mysql.php'
+      - '.github/workflows/mysql-payment-lifecycle-races.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mysql-payment-races:
+    name: Advisory lock and webhook/expiry serialization
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: eventosrp_lock_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql
+          coverage: none
+      - name: Lint payment lifecycle
+        run: php -l src/payment_lifecycle.php && php -l tests/reconciliation_lock_mysql.php && php -l tests/webhook_reconciliation_race_mysql.php
+      - name: Test webhook and expiry serialization
+        run: php tests/webhook_reconciliation_race_mysql.php
+      - name: Test advisory lock release and contention
+        run: php tests/reconciliation_lock_mysql.php

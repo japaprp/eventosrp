@@ -1,5 +1,4 @@
 -- Aplicar UMA VEZ depois da migração 002; fazer backup antes.
-USE encontro;
 ALTER TABLE spaces
  ADD COLUMN owner_id BIGINT UNSIGNED NULL,
  ADD COLUMN neighborhood VARCHAR(120) NOT NULL DEFAULT '',

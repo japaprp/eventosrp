@@ -18,3 +18,9 @@
 .hero-illustration-card strong{font-family:Georgia,serif;font-size:clamp(28px,3vw,42px);line-height:1.12;color:#254e40}
 .hero-illustration-card small{font-size:13px;line-height:1.55;color:#526273}
 .social-proof-mark{width:42px;height:42px;display:grid;place-items:center;border-radius:50%;background:#e1ebe4;color:#254e40;font-size:20px;font-weight:800;flex:0 0 auto}
+.photo-preview{position:relative;min-width:0;border:1px solid #dbe2df;border-radius:12px;overflow:hidden;background:#eef2ef;aspect-ratio:4/3}
+.photo-preview img{width:100%;height:100%;object-fit:cover;display:block}
+.photo-preview button{position:absolute;top:7px;right:7px;width:30px;height:30px;border:0;border-radius:50%;background:rgba(25,35,30,.82);color:#fff;font-size:18px;cursor:pointer}
+#space-photo-preview{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:10px;margin-top:12px}
+.photo-upload-status{display:block;min-height:1.3em;margin-top:8px;color:#526273;font-size:12px}
+@media(max-width:700px){.hero-illustration{min-height:340px;padding:20px}.hero-illustration-card{width:82%;padding:25px}.hero-illustration .image-caption{max-width:80%}}

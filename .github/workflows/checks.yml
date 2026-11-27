@@ -23,6 +23,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node --check public/app.js
       - run: npm test
+      - run: php tests/account_consent.php
       - run: php tests/booking.php
       - run: php tests/spaces.php
       - run: php tests/payments.php

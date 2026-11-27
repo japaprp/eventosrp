@@ -1,13 +1,16 @@
 <?php
 declare(strict_types=1);
+
 function bookingDate(mixed $value): DateTimeImmutable {
     if (!is_string($value)) throw new InvalidArgumentException('Informe a entrada e a saída.');
     $date = DateTimeImmutable::createFromFormat('!Y-m-d\TH:i', $value, new DateTimeZone('America/Sao_Paulo'));
     if (!$date || $date->format('Y-m-d\TH:i') !== $value) throw new InvalidArgumentException('Data ou horário inválido.');
     return $date;
 }
+
 function bookingQuote(mixed $checkIn, mixed $checkOut, mixed $plan, string $dailyPrice, ?string $weekendPrice, ?DateTimeImmutable $now = null): array {
-    $start = bookingDate($checkIn); $end = bookingDate($checkOut);
+    $start = bookingDate($checkIn);
+    $end = bookingDate($checkOut);
     $now ??= new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
     if ($start < $now) throw new InvalidArgumentException('A entrada precisa estar no futuro.');
     $seconds = $end->getTimestamp() - $start->getTimestamp();
@@ -18,11 +21,54 @@ function bookingQuote(mixed $checkIn, mixed $checkOut, mixed $plan, string $dail
     $dailyCents = (int) round((float) $dailyPrice * 100);
     $totalCents = $days * $dailyCents;
     if ($plan === 'weekend') {
-        if (!in_array((int) $start->format('N'), [5, 6], true) || $seconds < 172800) throw new InvalidArgumentException('O pacote exige entrada na sexta ou no sábado e pelo menos 48 horas.');
+        if (!in_array((int) $start->format('N'), [5, 6], true) || $seconds < 172800) {
+            throw new InvalidArgumentException('O pacote exige entrada na sexta ou no sábado e pelo menos 48 horas.');
+        }
         $totalCents = ($weekendPrice === null ? 2 * $dailyCents : (int) round((float) $weekendPrice * 100)) + ($days - 2) * $dailyCents;
     }
-    return ['check_in' => $start->format('Y-m-d H:i:s'), 'check_out' => $end->format('Y-m-d H:i:s'), 'event_date' => $start->format('Y-m-d'), 'days' => $days, 'total' => number_format($totalCents / 100, 2, '.', '')];
+    return [
+        'check_in' => $start->format('Y-m-d H:i:s'),
+        'check_out' => $end->format('Y-m-d H:i:s'),
+        'event_date' => $start->format('Y-m-d'),
+        'days' => $days,
+        'total' => number_format($totalCents / 100, 2, '.', ''),
+    ];
 }
+
 function bookingOverlaps(string $startA, string $endA, string $startB, string $endB): bool {
     return $startA < $endB && $endA > $startB;
+}
+
+const RESERVATION_TERMS_VERSION = 'reserva-v1-2026-11-27';
+const RESERVATION_PLATFORM_TERMS = 'A plataforma facilita solicitações de locação entre clientes e proprietários. O cliente deve conferir os dados, horários, capacidade e regras do espaço. O envio da solicitação não gera cobrança e não confirma a locação; o proprietário deve confirmar a solicitação. Se houver pagamento em etapa futura, as condições serão apresentadas antes de qualquer cobrança.';
+
+function reservationAgreementSnapshot(array $space, array $quote, array $reservation, string $version): string {
+    return json_encode([
+        'version' => $version,
+        'platform_terms' => RESERVATION_PLATFORM_TERMS,
+        'space' => [
+            'id' => (int) $space['id'],
+            'name' => (string) $space['name'],
+            'address' => (string) ($space['address'] ?? ''),
+            'city' => (string) $space['city'],
+            'rules_and_cancellation' => trim((string) ($space['rules'] ?? '')) !== ''
+                ? (string) $space['rules']
+                : 'O proprietário ainda não cadastrou regras específicas; confirme-as diretamente antes da confirmação da locação.',
+            'capacity' => (int) ($space['capacity'] ?? 0),
+            'daily_price' => (string) ($space['daily_price'] ?? ''),
+            'weekend_price' => $space['weekend_price'] ?? null,
+            'check_in_time' => substr((string) $space['check_in_time'], 0, 5),
+            'check_out_time' => substr((string) $space['check_out_time'], 0, 5),
+            'minimum_days' => (int) ($space['minimum_days'] ?? 1),
+            'cleanup_minutes' => (int) ($space['cleanup_minutes'] ?? 0),
+        ],
+        'reservation' => [
+            'check_in' => $quote['check_in'],
+            'check_out' => $quote['check_out'],
+            'plan' => (string) $reservation['plan'],
+            'billable_days' => (int) $quote['days'],
+            'total_brl' => $quote['total'],
+            'guests' => (int) $reservation['guests'],
+        ],
+    ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }

@@ -3,7 +3,7 @@ let spaces = [];
 let catalogueStatus = 'loading', catalogueRequest = 0;
 const $ = s => document.querySelector(s), money = n => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:0,maximumFractionDigits:2}).format(n);
 const escapeHtml = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const photo = s => {
+const photo = (s) => {
   const candidate=s.photos?.[0];
   if(candidate){try{const url=new URL(candidate);if(url.protocol==='https:')return url.href}catch{}}
   const placeholder='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500"><rect width="800" height="500" fill="#e9edf1"/><path d="M0 390L220 210l150 120 120-150 310 210v110H0z" fill="#d5dde5"/><circle cx="400" cy="180" r="42" fill="#b6c3cf"/><text x="400" y="445" text-anchor="middle" font-family="Arial,sans-serif" font-size="28" fill="#526273">Foto ainda não enviada</text></svg>';
@@ -39,7 +39,7 @@ function render(){
   const list=spaces.filter(s=>(!type||s.type===type)&&(!$('#location').value||s.city===$('#location').value)&&(!$('#event').value||s.events.includes($('#event').value))&&s.capacity>=Number($('#capacity').value||'0'));
   $('#count').textContent=`${list.length} espaço${list.length===1?'':'s'} encontrado${list.length===1?'':'s'}`;
   $('#empty').hidden=list.length>0||spaces.length===0;
-  $('#cards').innerHTML=list.length?list.map(s=>`<article class="card"><button class="card-open" data-detail="${s.id}" aria-label="Ver ${escapeHtml(s.name)}"><img src="${escapeHtml(photo(s))}" alt="${escapeHtml(s.name)}" loading="lazy"><h3>${escapeHtml(s.name)}</h3></button><button data-favorite="${s.id}" aria-label="${favorites.includes(s.id)?'Remover dos':'Adicionar aos'} favoritos" aria-pressed="${favorites.includes(s.id)}" class="${favorites.includes(s.id)?'favorited':''}">♡</button><p>${escapeHtml(s.neighborhood||s.city)} · ${escapeHtml(s.type)} · até ${s.capacity} pessoas</p><p class="price">${money(s.price)}<span>/diária</span></p></article>`).join(''):spaces.length?'':'<p class="notice">Ainda não há espaços publicados. Anuncie seu espaço para começar a receber solicitações.</p>';
+  $('#cards').innerHTML=list.length?list.map(s=>`<article class="card"><button class="card-open" data-detail="${s.id}" aria-label="Ver ${escapeHtml(s.name)}"><img src="${escapeHtml(photo(s))}" alt="${s.photos?.length?escapeHtml(s.name):'Foto ainda não enviada'}" loading="lazy"><h3>${escapeHtml(s.name)}</h3></button><button data-favorite="${s.id}" aria-label="${favorites.includes(s.id)?'Remover dos':'Adicionar aos'} favoritos" aria-pressed="${favorites.includes(s.id)}" class="${favorites.includes(s.id)?'favorited':''}">♡</button><p>${escapeHtml(s.neighborhood||s.city)} · ${escapeHtml(s.type)} · até ${s.capacity} pessoas</p><p class="price">${money(s.price)}<span>/diária</span></p></article>`).join(''):spaces.length?'':'<p class="notice">Ainda não há espaços publicados. Anuncie seu espaço para começar a receber solicitações.</p>';
 }
 function modal(html){if(unsubscribeChat){unsubscribeChat();unsubscribeChat=null}$('#modal-content').innerHTML=html;if(!$('#modal').open)$('#modal').showModal()}
 $('#modal .close').onclick=()=>$('#modal').close();$('#modal').addEventListener('close',()=>{unsubscribeChat?.();unsubscribeChat=null});$('#modal').addEventListener('click',e=>{if(e.target===$('#modal'))$('#modal').close()});
@@ -75,7 +75,6 @@ function login(after) {
       </div>
       <label>E-mail<input type="email" id="email" autocomplete="email" required></label>
       <label>Senha<input type="password" id="password" autocomplete="current-password" minlength="6" required></label>
-      <label id="signup-consent" hidden><span><input type="checkbox" id="accept-account" disabled style="width:auto"> Li os termos de uso e a política de privacidade disponíveis no rodapé.</span></label>
       <div class="form-error" role="alert"></div><button class="primary" type="submit" id="auth-submit">Entrar</button>
       <button type="button" class="login" id="google-signin" style="background:#4285F4;color:white;gap:8px;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg> Entrar com Google</button>
       <button type="button" class="login" id="signup">Criar minha conta</button>
@@ -90,18 +89,19 @@ function login(after) {
       const provider=new sdk.GoogleAuthProvider();
       const result=await sdk.signInWithPopup(auth,provider);
       setAuthenticatedUser(result.user);
+      if(!await ensureAccountConsent())throw new Error('O acesso às funções da plataforma depende da confirmação dos documentos vigentes.');
       profile={name:user.displayName||'',phone:''};
       try{await api('profile',{method:'POST',body:JSON.stringify(profile)})}
       catch{toast('Conectado via Google. Complete seus dados de contato na reserva.')}
       $('#modal').close();toast('Bem-vindo '+user.displayName+'!');after?.();
     }catch(e){
-      const errorMessages={'auth/popup-closed-by-user':'A janela de login foi fechada antes de concluir.','auth/popup-blocked':'O navegador bloqueou a janela do Google. Permita pop-ups para este site e tente novamente.','auth/account-exists-with-different-credential':'Este e-mail já está cadastrado com outro método de login.','auth/unauthorized-domain':'O domínio eventosrp.onrender.com não está autorizado. No Firebase, abra Authentication → Settings → Authorized domains e adicione eventosrp.onrender.com.','auth/operation-not-allowed':'O provedor Google está desativado. No Firebase, abra Authentication → Sign-in method e habilite Google.','auth/network-request-failed':'Falha de rede ao falar com o Firebase. Verifique a conexão e tente novamente.','auth/operation-not-supported-in-this-environment':'O navegador não permite este método de login. Use um navegador atualizado em HTTPS.'};
+      const errorMessages={'auth/popup-closed-by-user':'A janela de login foi fechada antes de concluir.','auth/popup-blocked':'O navegador bloqueou a janela do Google. Permita pop-ups para este site e tente novamente.','auth/account-exists-with-different-credential':'Este e-mail já está cadastrado com outro método de login.','auth/unauthorized-domain':'O domínio eventosrp-production.up.railway.app não está autorizado. No Firebase, abra Authentication → Settings → Authorized domains e adicione eventosrp-production.up.railway.app.','auth/operation-not-allowed':'O provedor Google está desativado. No Firebase, abra Authentication → Sign-in method e habilite Google.','auth/network-request-failed':'Falha de rede ao falar com o Firebase. Verifique a conexão e tente novamente.','auth/operation-not-supported-in-this-environment':'O navegador não permite este método de login. Use um navegador atualizado em HTTPS.'};
       $('.form-error').textContent=errorMessages[e.code]||'Falha ao entrar com Google ('+(e.code||e.name||'erro sem código')+').';button.disabled=false;
     }
   };
   $('#signup').onclick=()=>{
-    creating=!creating;$('#signup-fields').hidden=!creating;$('#signup-consent').hidden=!creating;
-    for(const selector of ['#signup-name','#signup-phone','#accept-account']){$(selector).disabled=!creating;$(selector).required=creating}
+    creating=!creating;$('#signup-fields').hidden=!creating;
+    for(const selector of ['#signup-name','#signup-phone']){$(selector).disabled=!creating;$(selector).required=creating}
     $('#auth-title').textContent=creating?'Cadastro rápido.':'Entre para reservar.';
     $('#auth-description').textContent=creating?'Só precisamos do seu nome, celular, e-mail e senha.':'Acesse com seu e-mail e senha.';
     $('#auth-submit').textContent=creating?'Criar conta e continuar':'Entrar';
@@ -115,22 +115,76 @@ function login(after) {
     if(creating&&(name.length<2||!validPhone(phone))){error.textContent='Informe seu nome e um celular válido com DDD.';return}
     button.disabled=true;$('#signup').disabled=true;$('#google-signin').disabled=true;
     try{
+      if(creating){
+        const readiness=await fetch('api.php?action=account-consent-registration-status',{cache:'no-store'});
+        let readinessData={};try{readinessData=await readiness.json()}catch{}
+        if(!readiness.ok||readinessData.available!==true)throw new Error(readinessData.error||'O cadastro está temporariamente indisponível. Tente novamente mais tarde.');
+      }
       const result=await (creating?sdk.createUserWithEmailAndPassword:sdk.signInWithEmailAndPassword)(auth,$('#email').value.trim(),$('#password').value);setAuthenticatedUser(result.user);
+      if(!await ensureAccountConsent())throw new Error('O acesso às funções da plataforma depende da confirmação dos documentos vigentes.');
       if(creating){
         profile={name,phone};
         try{await sdk.updateProfile(user,{displayName:name});await api('profile',{method:'POST',body:JSON.stringify(profile)})}
-        catch{toast('Conta criada. Confirme seus dados de contato na reserva.')}
+        catch{toast('Conta criada. Complete seus dados de contato na reserva.')}
       }else{try{profile=await api('profile')}catch{profile={name:user.displayName||'',phone:''}}}
       $('#modal').close();toast(creating?'Conta criada. Vamos planejar seu evento!':'Você entrou na sua conta.');after?.();
     }catch(e){
       const messages={'auth/email-already-in-use':'Este e-mail já tem uma conta. Use Entrar ou recupere a senha.','auth/weak-password':'Escolha uma senha mais forte.','auth/invalid-email':'Confirme o e-mail.','auth/user-not-found':'Conta não encontrada.','auth/wrong-password':'Senha incorreta.'};
-      error.textContent=messages[e.code]||'Não foi possível acessar. Verifique os dados ou tente novamente.';button.disabled=false;$('#signup').disabled=false;$('#google-signin').disabled=false;
+      error.textContent=(e?.message&&e.message!=='')?e.message:(messages[e.code]||'Não foi possível acessar. Verifique os dados ou tente novamente.');button.disabled=false;$('#signup').disabled=false;$('#google-signin').disabled=false;
     }
   };
   $('#reset').onclick=()=>passwordReset($('#email').value.trim());
 }
 function validPhone(value){return /^(?:55)?[1-9][0-9][0-9]{8,9}$/.test(value.replace(/\D/g,''))}
 
+async function ensureAccountConsent(){
+  let requirements;
+  try{
+    requirements=await api('account-consent-requirements');
+    const status=await api('account-consent-status');
+    if(status.accepted===true)return true;
+  }catch(error){
+    throw new Error(error?.message||'Não foi possível verificar os documentos obrigatórios da conta.');
+  }
+  return await new Promise((resolve,reject)=>{
+    modal(`<span class="eyebrow">SEGURANÇA DA SUA CONTA</span><h2>Confirme os documentos vigentes.</h2>
+      <p>Para usar as funções da plataforma, confira os documentos oficiais nas versões informadas abaixo.</p>
+      <p><a href="${escapeHtml(requirements.terms_url)}" target="_blank" rel="noopener noreferrer">Ler Termos de Uso — ${escapeHtml(requirements.terms_version)}</a></p>
+      <p><a href="${escapeHtml(requirements.privacy_url)}" target="_blank" rel="noopener noreferrer">Ler Política de Privacidade — ${escapeHtml(requirements.privacy_version)}</a></p>
+      <form class="form" id="account-consent-form">
+        <label><span><input type="checkbox" id="account-consent-accepted" required style="width:auto"> Confirmo que li e aceito os Termos de Uso e a Política de Privacidade nas versões indicadas.</span></label>
+        <div class="form-error" role="alert"></div>
+        <button class="primary" type="submit" id="account-consent-submit">Confirmar e continuar</button>
+        <button class="detail-button" type="button" id="account-consent-cancel">Agora não</button>
+      </form>`);
+    const dialog=$('#modal');
+    const form=$('#account-consent-form');
+    let settled=false;
+    const finish=(value)=>{if(settled)return;settled=true;resolve(value)};
+    dialog.addEventListener('close',()=>finish(false),{once:true});
+    $('#account-consent-cancel').onclick=()=>dialog.close();
+    form.onsubmit=async event=>{
+      event.preventDefault();
+      const checkbox=$('#account-consent-accepted');
+      const button=$('#account-consent-submit');
+      const error=form.querySelector('.form-error');
+      if(!checkbox.checked){error.textContent='Confirme o aceite após ler os documentos.';return}
+      button.disabled=true;
+      try{
+        await api('account-consent',{method:'POST',body:JSON.stringify({
+          accepted:true,
+          terms_version:requirements.terms_version,
+          privacy_version:requirements.privacy_version
+        })});
+        dialog.close();
+        finish(true);
+      }catch(e){
+        error.textContent=e?.message||'Não foi possível registrar seu aceite. Tente novamente.';
+        button.disabled=false;
+      }
+    };
+  });
+}
 async function api(path,options={}){
   if(!user)throw new Error('Entre na sua conta para continuar.');
   const token=await user.getIdToken();
@@ -150,9 +204,9 @@ function reservation(s) {
       <label>Nome do responsável<input id="contact-name" autocomplete="name" minlength="2" maxlength="120" required></label>
       <div class="form-row"><label>Número de convidados<input type="number" id="guests" min="1" max="${s.capacity}" required></label><label>Celular com DDD<input type="tel" id="phone" autocomplete="tel" maxlength="25" placeholder="(16) 99999-9999" required></label></div>
       <label>Conte sobre seu evento<textarea id="message" maxlength="2000" required></textarea></label>
-      <label><span><input type="checkbox" required style="width:auto"> Li os termos de uso e desejo solicitar a reserva.</span></label>
-      <p class="notice">Total estimado para a locação. O servidor confirma preço e disponibilidade antes do pagamento no Mercado Pago. Serviços adicionais devem ser acordados previamente.</p>
-      <div class="form-error" role="alert"></div><button class="primary" type="submit">Continuar para pagamento ↗</button>
+      <label><span><input type="checkbox" id="accept-reservation-terms" required style="width:auto"> Li e aceito as condições desta reserva e as regras do espaço.</span></label>
+      <p class="notice">${config.paymentsEnabled?'O servidor confirma preço e disponibilidade antes do pagamento no Mercado Pago.':'O envio não gera cobrança nem confirma a locação. O proprietário analisará sua solicitação e você poderá acompanhar a resposta no painel.'} Serviços adicionais devem ser acordados previamente.</p>
+      <div class="form-error" role="alert"></div><button class="primary" type="submit">${config.paymentsEnabled?'Continuar para pagamento ↗':'Enviar solicitação ↗'}</button>
     </form>`);
   $('#contact-name').value=profile.name||user?.displayName||'';$('#phone').value=profile.phone||'';
   let changedOut=false;
@@ -184,13 +238,20 @@ function reservation(s) {
       if(!validPhone($('#phone').value))throw new Error('Informe um celular válido com DDD.');
       if($('#contact-name').value.trim().length<2)throw new Error('Informe o nome do responsável.');
       button.disabled=true;
-      const data=await api('reserve',{method:'POST',body:JSON.stringify({space_id:s.id,check_in:$('#check-in').value,check_out:$('#check-out').value,plan:$('#plan').value,contact_name:$('#contact-name').value.trim(),guests:Number($('#guests').value),phone:$('#phone').value.trim(),message:$('#message').value.trim()})});
-      const target=new URL(data.checkout_url);if(target.protocol!=='https:'||!/(^|\.)mercadopago\.(com|com\.br)$/.test(target.hostname))throw new Error('Endereço de pagamento inválido.');location.href=data.checkout_url;
+      const data=await api('reserve',{method:'POST',body:JSON.stringify({space_id:s.id,check_in:$('#check-in').value,check_out:$('#check-out').value,plan:$('#plan').value,contact_name:$('#contact-name').value.trim(),guests:Number($('#guests').value),phone:$('#phone').value.trim(),message:$('#message').value.trim(),terms_accepted:$('#accept-reservation-terms').checked})});
+      if(config.paymentsEnabled){
+        const target=new URL(data.checkout_url);if(target.protocol!=='https:'||!/(^|\.)mercadopago\.(com|com\.br)$/.test(target.hostname))throw new Error('Endereço de pagamento inválido.');location.href=data.checkout_url;
+      }else{
+        if(data.status!=='requested'||data.checkout_url)throw new Error('O servidor retornou um estado de solicitação inesperado.');
+        modal('<h2>Solicitação enviada.</h2><p>O proprietário recebeu seu pedido. Não houve cobrança. Acompanhe a resposta em Minhas reservas e use a conversa para esclarecer os detalhes.</p><button class="primary" id="view-requests">Ver minhas solicitações</button>');
+        $('#view-requests').onclick=()=>account('reservas');
+        toast('Solicitação enviada sem cobrança.');
+      }
     }catch(err){$('.form-error').textContent=err.message;button.disabled=false}
   };
 }
 
-function reservationStatus(status){return {creating:'Em conferência — não repita o pagamento',pending:'Aguardando pagamento',approved:'Pagamento aprovado',failed:'Solicitação não concluída',cancelled:'Cancelada'}[status]||'Status em atualização'}
+function reservationStatus(status,paymentStatus=null,paymentAttention='none'){if(paymentAttention==='refund_required')return 'Pagamento aprovado fora da reserva — análise de reembolso necessária';if(paymentAttention==='chargeback')return 'Pagamento contestado — atendimento necessário';if(paymentAttention==='review_required')return 'Pagamento em revisão';if(status==='pending'&&paymentStatus==='approved')return 'Pagamento aprovado — atualização da reserva em processamento';return {creating:'Em conferência',requested:'Aguardando confirmação do proprietário',confirmed:'Reserva confirmada pelo proprietário',declined:'Solicitação recusada pelo proprietário',pending:'Aguardando pagamento',approved:'Pagamento aprovado',failed:'Solicitação não concluída',cancelled:'Cancelada',expired:'Reserva expirada'}[status]||'Status em atualização'}
 async function account(page){
   if(!user){login(()=>account(page));return}
   modal(`<h2>${page==='reservas'?'Minhas reservas':'Meu painel'}</h2><p id="account-email"></p><div id="reservation-list" role="status">Carregando...</div><button class="login" id="space-mgmt">Meus espaços ↗</button><button class="login" id="account-logout">Sair</button>`);
@@ -201,7 +262,7 @@ async function account(page){
   try{
     const rows=await api('reservations');
     if($('#reservation-list')!==box)return;
-    box.innerHTML=rows.length?rows.map(r=>`<div class="reservation-item"><p><strong>${escapeHtml(r.name)}</strong> · ${formatBookingDate(r.check_in)}</p><p class="muted">${escapeHtml(reservationStatus(r.status))}</p><p>Saída: ${formatBookingDate(r.check_out)} · ${money(r.total)}</p><button class="detail-button" data-chat="${escapeHtml(r.id)}">Ver conversa</button></div>`).join(''):'<p>Você ainda não tem reservas.</p>';
+    box.innerHTML=rows.length?rows.map(r=>`<div class="reservation-item"><p><strong>${escapeHtml(r.name)}</strong> · ${formatBookingDate(r.check_in)}</p><p class="muted">${escapeHtml(reservationStatus(r.status,r.payment_status,r.payment_attention))}</p><p>Saída: ${formatBookingDate(r.check_out)} · ${money(r.total)}</p><button class="detail-button" data-chat="${escapeHtml(r.id)}">Ver conversa</button></div>`).join(''):'<p>Você ainda não tem reservas.</p>';
     box.querySelectorAll('[data-chat]').forEach(button=>button.onclick=()=>chat(button.dataset.chat));
   }catch(error){if($('#reservation-list')===box)box.textContent=error.message}
 }
@@ -240,16 +301,39 @@ function passwordReset(email='') {
     catch{$('.form-error').textContent='Não foi possível enviar o link. Confira o e-mail e tente novamente.';button.disabled=false}
   };
 }
+const catalogueRetryDelays = [1000, 2000, 3000];
+async function fetchCatalogueData(request) {
+  let data;
+  for (let attempt = 0; attempt <= catalogueRetryDelays.length; attempt++) {
+    if (request !== catalogueRequest) return null;
+    let retry = false;
+    try {
+      const response = await fetch('api.php?action=spaces');
+      if (!response.ok) {
+        if ([502, 503, 504].includes(response.status) && attempt < catalogueRetryDelays.length) retry = true;
+        else throw new Error('Catálogo indisponível');
+      } else {
+        data = await response.json();
+        break;
+      }
+    } catch (error) {
+      if (request !== catalogueRequest) return null;
+      if (error instanceof TypeError && attempt < catalogueRetryDelays.length) retry = true;
+      else throw error;
+    }
+    if (!retry) throw new Error('Catálogo indisponível');
+    await new Promise(resolve => setTimeout(resolve, catalogueRetryDelays[attempt]));
+  }
+  if (!Array.isArray(data)) throw new Error('Catálogo inválido');
+  return data;
+}
 async function refreshCatalogue() {
   const request = ++catalogueRequest;
   catalogueStatus = 'loading';
   render();
   try {
-    const response = await fetch('api.php?action=spaces');
-    if (!response.ok) throw new Error('Catálogo indisponível');
-    const data = await response.json();
-    if (!Array.isArray(data)) throw new Error('Catálogo inválido');
-    if (request !== catalogueRequest) return;
+    const data = await fetchCatalogueData(request);
+    if (request !== catalogueRequest || !data) return;
     spaces = data.map(space => ({
       ...space,
       description: space.description || '',
@@ -272,22 +356,50 @@ async function refreshCatalogue() {
   render();
 }
 $('#retry-catalogue').onclick = refreshCatalogue;
+async function ownerApprovalPanel(){
+  if(!user)return;
+  modal('<h2>Solicitações de proprietários.</h2><p>Somente contas autorizadas pela administração podem publicar espaços.</p><div id="owner-approval-list" role="status">Carregando solicitações...</div>');
+  const box=$('#owner-approval-list');
+  try{
+    const rows=await api('owner-requests');
+    if($('#owner-approval-list')!==box)return;
+    box.textContent=rows.length?'':'Nenhuma solicitação pendente.';
+    for(const owner of rows){
+      const item=document.createElement('div');item.className='reservation-item';
+      const detail=document.createElement('p');detail.textContent=`${owner.name||'Sem nome'} · ${owner.email} · ${owner.spaces_count} espaço(s)`;item.appendChild(detail);
+      const actions=document.createElement('div');actions.className='panel-actions';
+      for(const decision of ['approved','rejected']){
+        const button=document.createElement('button');button.className=decision==='approved'?'primary':'login';button.textContent=decision==='approved'?'Aprovar proprietário':'Recusar';
+        button.onclick=async()=>{button.disabled=true;try{await api('review-owner',{method:'POST',body:JSON.stringify({firebase_uid:owner.firebase_uid,decision})});toast(decision==='approved'?'Proprietário aprovado.':'Solicitação recusada.');ownerApprovalPanel()}catch(error){button.disabled=false;toast(error.message)}};
+        actions.appendChild(button);
+      }
+      item.appendChild(actions);box.appendChild(item);
+    }
+  }catch(error){if($('#owner-approval-list')===box)box.textContent=error.message}
+}
 async function spaceManager(){
   if(!user){login(()=>spaceManager());return}
-  modal('<h2>Meus espaços.</h2><div class="panel-actions"><button class="primary" id="new-space">Cadastrar espaço ↗</button><button class="login" id="back-account">Minhas reservas</button></div><div id="owned-spaces">Carregando...</div><h3 style="margin-top:30px">Reservas recebidas</h3><div id="host-reservations">Carregando...</div>');
+  modal('<h2>Meus espaços.</h2><p id="owner-approval-status" class="notice">Verificando situação do cadastro...</p><div class="panel-actions"><button class="primary" id="new-space">Cadastrar espaço ↗</button><button class="login" id="back-account">Minhas reservas</button><button class="login" id="admin-owner-review" hidden>Solicitações de proprietários</button></div><div id="owned-spaces">Carregando...</div><h3 style="margin-top:30px">Reservas recebidas</h3><div id="host-reservations">Carregando...</div>');
   $('#new-space').onclick=()=>spaceForm();$('#back-account').onclick=()=>account('reservas');
-  const results=await Promise.allSettled([api('my-spaces'),api('host-reservations')]);
+  const results=await Promise.allSettled([api('my-spaces'),api('host-reservations'),api('profile')]);
   if(!$('#owned-spaces')||!$('#host-reservations'))return;
-  const [owned,received]=results;
+  const [owned,received,accountProfile]=results;
+  if(accountProfile.status==='fulfilled'){
+    profile={...profile,...accountProfile.value};
+    const status=accountProfile.value.owner_status;
+    $('#owner-approval-status').textContent=status==='approved'?'Cadastro aprovado. Você pode ativar ou pausar cada anúncio.':status==='pending'?'Sua solicitação de proprietário está em análise. Os anúncios permanecem ocultos até a aprovação.':status==='rejected'?'Sua solicitação anterior foi recusada. Atualize os dados do espaço para solicitar uma nova análise.':'Cadastre seu espaço para solicitar autorização de publicação.';
+    $('#admin-owner-review').hidden=!accountProfile.value.is_platform_admin;
+    $('#admin-owner-review').onclick=ownerApprovalPanel;
+  }else $('#owner-approval-status').textContent='Não foi possível verificar a situação da aprovação.';
   if(owned.status==='rejected')$('#owned-spaces').textContent=owned.reason.message;
   else{
     const box=$('#owned-spaces');box.textContent=owned.value.length?'':'Você ainda não cadastrou espaços.';
-    for(const s of owned.value){const item=document.createElement('div');item.className='reservation-item';const text=document.createElement('p');text.textContent=`${s.name} · ${s.city} · ${s.address}`;item.appendChild(text);const button=document.createElement('button');button.className='detail-button';button.textContent='Editar';button.onclick=()=>spaceForm(s);item.appendChild(button);box.appendChild(item)}
+    for(const s of owned.value){const item=document.createElement('div');item.className='reservation-item';const text=document.createElement('p');text.textContent=`${s.name} · ${s.city} · ${s.address} · ${s.active?'Publicado':'Pausado'}`;item.appendChild(text);const button=document.createElement('button');button.className='detail-button';button.textContent='Editar';button.onclick=()=>spaceForm(s);item.appendChild(button);box.appendChild(item)}
   }
   if(received.status==='rejected')$('#host-reservations').textContent=received.reason.message;
   else{
     const box=$('#host-reservations');box.textContent=received.value.length?'':'Nenhuma reserva recebida.';
-    for(const r of received.value){const item=document.createElement('div');item.className='reservation-item';const text=document.createElement('p');text.textContent=`${r.name} · ${r.contact_name} · ${formatBookingDate(r.check_in)} · ${reservationStatus(r.status)}`;item.appendChild(text);const button=document.createElement('button');button.className='detail-button';button.textContent='Ver conversa';button.onclick=()=>chat(r.id);item.appendChild(button);box.appendChild(item)}
+    for(const r of received.value){const item=document.createElement('div');item.className='reservation-item';const text=document.createElement('p');text.textContent=`${r.name} · ${r.contact_name} · ${formatBookingDate(r.check_in)} · ${reservationStatus(r.status,r.payment_status,r.payment_attention)}`;item.appendChild(text);if(r.status==='requested'){for(const decision of ['confirmed','declined']){const action=document.createElement('button');action.className=decision==='confirmed'?'primary':'detail-button';action.textContent=decision==='confirmed'?'Confirmar solicitação':'Recusar solicitação';action.onclick=async()=>{action.disabled=true;try{await api('review-reservation',{method:'POST',body:JSON.stringify({reservation_id:r.id,decision})});toast(decision==='confirmed'?'Reserva confirmada.':'Solicitação recusada.');spaceManager()}catch(error){action.disabled=false;toast(error.message)}};item.appendChild(action)}}const button=document.createElement('button');button.className='detail-button';button.textContent='Ver conversa';button.onclick=()=>chat(r.id);item.appendChild(button);box.appendChild(item)}
   }
 }
 
@@ -299,40 +411,93 @@ function spaceForm(space=null){
    <label>Nome do espaço<input id="space-name" minlength="2" maxlength="120" required></label>
    <div class="form-row"><label>Cidade<input id="space-city" maxlength="120" required></label><label>Bairro<input id="space-neighborhood" maxlength="120"></label></div>
    <label>Endereço público do espaço<input id="space-address" maxlength="250" required><small>Este endereço aparecerá nos detalhes do anúncio.</small></label>
-   <div class="form-row"><label>Tipo<select id="space-type"><option>Salão</option><option>Ao ar livre</option><option>Corporativo</option><option>Rooftop</option></select></label><label>Capacidade<input type="number" id="space-capacity" min="1" max="9999" required></label></div>
+   <div class="form-row"><label>Tipo<select id="space-type" required><option value="">Selecione o tipo</option><option>Salão</option><option>Ao ar livre</option><option>Corporativo</option><option>Rooftop</option></select></label><label>Capacidade<input type="number" id="space-capacity" min="1" max="9999" required></label></div>
    <label>Descrição<textarea id="space-description" minlength="2" maxlength="4000" required></textarea></label>
    <fieldset><legend>Eventos permitidos</legend><div class="checkbox-grid">${['Casamento','Corporativo','Aniversário'].map(e=>`<label><input type="checkbox" data-space-event value="${e}">${e}</label>`).join('')}</div></fieldset>
-   <div class="form-row"><label>Valor da diária (R$)<input type="number" id="space-price" min="0.01" max="9999999.99" step="0.01" required></label><label>Pacote de fim de semana — 48h — opcional (R$)<input type="number" id="space-weekend-price" min="0.01" max="9999999.99" step="0.01"></label></div>
+   <div class="form-row"><label>Valor da diária (R$)<input type="number" id="space-price" min="0.01" max="9999999.99" step="0.01" required></label><label>Pacote de fim de semana — 48h (R$)<input type="number" id="space-weekend-price" min="0.01" max="9999999.99" step="0.01"></label></div>
    <div class="form-row"><label>Horário de entrada<input type="time" id="space-in" required></label><label>Horário de saída<input type="time" id="space-out" required></label></div>
    <div class="form-row"><label>Mínimo de diárias<input type="number" id="space-minimum" min="1" max="30" required></label><label>Preparação entre reservas (minutos)<input type="number" id="space-cleanup" min="0" max="1440" required></label></div>
    <p class="notice">Cada diária cobre até 24 horas. Se a saída for mais tarde que a entrada, o período pode gerar uma diária adicional. Esses horários serão exigidos na reserva. O intervalo de preparação ajuda a evitar conflitos entre reservas.</p>
    <fieldset><legend>Comodidades</legend><div class="checkbox-grid">${amenities.map(a=>`<label><input type="checkbox" data-space-amenity value="${a}">${a}</label>`).join('')}</div></fieldset>
-   <label>Fotos — uma URL HTTPS por linha<textarea id="space-photos" placeholder="https://seu-site.com/foto.jpg" required></textarea><small>De uma a cinco fotos. Use imagens autorizadas e links diretos (HTTPS). A primeira foto será a capa.</small></label><div id="space-photo-preview" class="photo-preview" aria-live="polite"></div>
+   <label>Fotos reais do espaço<input type="file" id="space-photos" accept="image/*" multiple><small>Escolha de uma a cinco fotos no celular ou computador. As imagens são otimizadas antes do envio.</small></label>
+   <p id="photo-upload-status" class="notice" role="status" aria-live="polite" hidden></p><div id="space-photo-preview" class="space-photo-grid" aria-live="polite"></div>
    <label>Regras do local e condições de cancelamento<textarea id="space-rules" maxlength="4000" placeholder="Ex.: limite de som, horários, uso da piscina, limpeza e condições de cancelamento..."></textarea></label>
-   <label class="inline-check"><input type="checkbox" id="space-active"> Publicar anúncio e aceitar novas reservas</label><p class="notice">Desmarque para manter o anúncio pausado. Pausar não exclui as reservas já recebidas.</p>
-   <label class="inline-check"><input type="checkbox" required> Sou responsável pelo espaço e tenho autorização para publicar estas informações e imagens.</label>
+   <label class="inline-check"><input type="checkbox" id="space-active"> Publicar anúncio e aceitar novas reservas</label>
+   <label class="inline-check"><input type="checkbox" id="space-owner-authorized" required> Sou responsável pelo espaço e tenho autorização para publicar estas informações e imagens.</label>
    <div class="form-error" role="alert"></div><button class="primary" id="save-space">Salvar espaço ↗</button><button class="login" type="button" id="cancel-space">Voltar aos meus espaços</button>
   </form>`);
-  const values={'name':space?.name||'','city':space?.city||'Ribeirão Preto','neighborhood':space?.neighborhood||'','address':space?.address||'','type':space?.type||'Salão','capacity':space?.capacity||'','description':space?.description||'','price':space?.price||'','weekend-price':space?.weekendPrice??'','in':space?.checkInTime||'09:00','out':space?.checkOutTime||'09:00','minimum':space?.minimumDays||'1','cleanup':space?.cleanupMinutes||'0','photos':space?.photos?.join('\n')||'','rules':space?.rules||''};
+  const values={'name':space?.name||'','city':space?.city||'','neighborhood':space?.neighborhood||'','address':space?.address||'','type':space?.type||'','capacity':space?.capacity??'','description':space?.description||'','price':space?.price??'','weekend-price':space?.weekendPrice??'','in':space?.checkInTime||'','out':space?.checkOutTime||'','minimum':space?.minimumDays||'1','cleanup':space?.cleanupMinutes||'0','rules':space?.rules||''};
   for(const [key,value] of Object.entries(values))$('#space-'+key).value=value;
-  $('#space-active').checked=space?.active??true;
-  document.querySelectorAll('[data-space-event]').forEach(e=>e.checked=(space?.events||['Aniversário']).includes(e.value));
-  document.querySelectorAll('[data-space-amenity]').forEach(e=>e.checked=(space?.amenities||[]).includes(e.value));
-  function previewPhotos(){
+  let photos=Array.isArray(space?.photos)?space.photos.filter(url=>typeof url==='string'):[];const pendingUploads=new Set();
+  const photoForm=$('#space-form'),photoUser=user;
+  const photoFormIsCurrent=()=>$('#space-form')===photoForm&&$('#modal').open&&user?.uid===photoUser.uid;
+  async function discardPendingUploads(keepUrls=[]){const keep=new Set(keepUrls);for(const url of [...pendingUploads])if(!keep.has(url)){await api('delete-space-photo',{method:'POST',body:JSON.stringify({url})});pendingUploads.delete(url)}}
+  const cleanupOnClose=()=>{ $('#modal').removeEventListener('close',cleanupOnClose);void discardPendingUploads().catch(()=>{}) };
+  $('#modal').addEventListener('close',cleanupOnClose);
+  function updateSpacePhotoPreview(){
     const box=$('#space-photo-preview');
-    if(!$('#space-photos').value.trim()){box.textContent='Adicione os links para visualizar as fotos antes de salvar.';return}
-    try{const photos=parsePhotoUrls($('#space-photos').value);box.innerHTML=photos.map((url,index)=>`<figure><img src="${escapeHtml(url)}" alt="Prévia da foto ${index+1}" loading="lazy" referrerpolicy="no-referrer"><figcaption>${index===0?'Capa':'Foto '+(index+1)}</figcaption></figure>`).join('');box.querySelectorAll('img').forEach(img=>img.onerror=()=>{const warning=document.createElement('p');warning.textContent='Não foi possível carregar esta foto. Confira se o link abre uma imagem pública.';img.replaceWith(warning)})}
-    catch(error){box.textContent=error.message}
+    box.innerHTML=photos.length?photos.map((url,index)=>`<article class="space-photo-card"><img src="${escapeHtml(url)}" alt="Foto ${index+1} do espaço" loading="lazy"><button class="detail-button" type="button" data-remove-space-photo="${index}">Remover</button></article>`).join(''):'<small>As fotos selecionadas aparecerão aqui.</small>';
   }
-  $('#space-photos').oninput=previewPhotos;previewPhotos();
-  $('#cancel-space').onclick=()=>spaceManager();
+  async function compressSpacePhoto(file){
+    if(!file.type.startsWith('image/'))throw new Error('Selecione um arquivo de imagem.');
+    const source=URL.createObjectURL(file);
+    try{
+      const image=await new Promise((resolve,reject)=>{const item=new Image();item.onload=()=>resolve(item);item.onerror=()=>reject(new Error('Este formato não pôde ser aberto. Tente uma foto JPEG ou PNG.'));item.src=source});
+      let scale=Math.min(1,1600/Math.max(image.naturalWidth,image.naturalHeight));let blob=null;
+      for(let pass=0;pass<4;pass++){
+        const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+        const context=canvas.getContext('2d');if(!context)throw new Error('Não foi possível preparar esta foto.');
+        context.drawImage(image,0,0,canvas.width,canvas.height);
+        for(const quality of [.82,.7,.58,.46]){
+          blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));
+          if(blob&&blob.size<=2*1024*1024)break;
+        }
+        if(blob&&blob.size<=2*1024*1024)break;
+        scale*=.75;
+      }
+      if(!blob||blob.size>2*1024*1024)throw new Error('A foto é muito grande. Escolha uma imagem menor.');
+      return blob;
+    }finally{URL.revokeObjectURL(source)}
+  }
+  async function uploadSpacePhoto(file){
+    const image=await compressSpacePhoto(file),body=new FormData();body.append('photo',image,'foto.jpg');
+    const token=await photoUser.getIdToken(),response=await fetch('api.php?action=upload-space-photo',{method:'POST',headers:{Authorization:`Bearer ${token}`},body});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(result.error||'Não foi possível enviar esta foto.');
+    if(typeof result.url!=='string')throw new Error('O servidor não confirmou o envio da foto.');
+    if(!photoFormIsCurrent()){await fetch('api.php?action=delete-space-photo',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({url:result.url})}).catch(()=>{});return null}
+    return result.url;
+  }
+  updateSpacePhotoPreview();
+  $('#space-photo-preview').onclick=async event=>{const button=event.target.closest('[data-remove-space-photo]');if(!button)return;const [removed]=photos.splice(Number(button.dataset.removeSpacePhoto),1);updateSpacePhotoPreview();if(pendingUploads.has(removed)){try{await api('delete-space-photo',{method:'POST',body:JSON.stringify({url:removed})});pendingUploads.delete(removed)}catch(error){$('.form-error').textContent='A foto foi retirada do formulário; a limpeza no armazenamento será tentada novamente ao fechar.'}}};
+  $('#space-photos').onchange=async event=>{
+    const input=event.currentTarget,files=[...input.files];input.value='';if(!files.length)return;
+    if(photos.length+files.length>5){$('.form-error').textContent='Você pode adicionar até cinco fotos ao espaço.';return}
+    const status=$('#photo-upload-status');status.hidden=false;$('.form-error').textContent='';input.disabled=true;$('#save-space').disabled=true;$('#cancel-space').disabled=true;
+    let uploaded=0;
+    try{
+      for(let index=0;index<files.length;index++){
+        if(!photoFormIsCurrent())return;
+        status.textContent=`Otimizando e enviando foto ${index+1} de ${files.length}…`;
+        const url=await uploadSpacePhoto(files[index]);if(!url)return;photos.push(url);pendingUploads.add(url);uploaded++;updateSpacePhotoPreview();
+      }
+      status.textContent=`${uploaded} foto(s) adicionada(s).`;
+    }catch(error){
+      $('.form-error').textContent=error.message;
+      status.textContent=uploaded?`${uploaded} foto(s) enviada(s). Escolha novamente as que faltaram.`:'Não foi possível enviar as fotos.';
+    }finally{input.disabled=false;$('#save-space')&&($('#save-space').disabled=false);$('#cancel-space')&&($('#cancel-space').disabled=false)}
+  };
+  $('#space-active').checked=space?.active??false;
+  document.querySelectorAll('[data-space-event]').forEach(e=>e.checked=(space?.events||[]).includes(e.value));
+  document.querySelectorAll('[data-space-amenity]').forEach(e=>e.checked=(space?.amenities||[]).includes(e.value));
+  $('#cancel-space').onclick=async()=>{await discardPendingUploads().catch(()=>{});$('#modal').removeEventListener('close',cleanupOnClose);spaceManager()};
   $('#space-form').onsubmit=async e=>{
     e.preventDefault();const button=$('#save-space');$('.form-error').textContent='';
-    const payload={id:space?.id??null,name:$('#space-name').value.trim(),city:$('#space-city').value.trim(),neighborhood:$('#space-neighborhood').value.trim(),address:$('#space-address').value.trim(),type:$('#space-type').value,capacity:Number($('#space-capacity').value),description:$('#space-description').value.trim(),daily_price:$('#space-price').value,weekend_price:$('#space-weekend-price').value||null,check_in_time:$('#space-in').value,check_out_time:$('#space-out').value,minimum_days:Number($('#space-minimum').value),cleanup_minutes:Number($('#space-cleanup').value),photos:[],amenities:[...document.querySelectorAll('[data-space-amenity]:checked')].map(e=>e.value),events:[...document.querySelectorAll('[data-space-event]:checked')].map(e=>e.value),rules:$('#space-rules').value.trim(),active:$('#space-active').checked};
+    const payload={id:space?.id??null,name:$('#space-name').value.trim(),city:$('#space-city').value.trim(),neighborhood:$('#space-neighborhood').value.trim(),address:$('#space-address').value.trim(),type:$('#space-type').value,capacity:Number($('#space-capacity').value),description:$('#space-description').value.trim(),daily_price:$('#space-price').value,weekend_price:$('#space-weekend-price').value||null,check_in_time:$('#space-in').value,check_out_time:$('#space-out').value,minimum_days:Number($('#space-minimum').value),cleanup_minutes:Number($('#space-cleanup').value),photos:photos,amenities:[...document.querySelectorAll('[data-space-amenity]:checked')].map(e=>e.value),events:[...document.querySelectorAll('[data-space-event]:checked')].map(e=>e.value),rules:$('#space-rules').value.trim(),active:$('#space-active').checked,owner_authorized:$('#space-owner-authorized').checked};
     if(!payload.events.length){$('.form-error').textContent='Selecione pelo menos um tipo de evento.';return}
-    try{payload.photos=parsePhotoUrls($('#space-photos').value)}catch(error){$('.form-error').textContent=error.message;$('#space-photos').focus?.();return}
+    if(!payload.photos.length||payload.photos.length>5){$('.form-error').textContent='Adicione de uma a cinco fotos do espaço.';return}
     button.disabled=true;
-    try{await api('save-space',{method:'POST',body:JSON.stringify(payload)});await refreshCatalogue();toast('Espaço salvo.');await spaceManager()}
+    try{await discardPendingUploads(photos);await api('save-space',{method:'POST',body:JSON.stringify(payload)});pendingUploads.clear();$('#modal').removeEventListener('close',cleanupOnClose);await refreshCatalogue();toast('Espaço salvo.');await spaceManager()}
     catch(err){$('.form-error').textContent=err.message;button.disabled=false}
   };
 }
