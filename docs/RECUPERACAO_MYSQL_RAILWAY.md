@@ -14,25 +14,21 @@
 | Volume | `mysql-volume`, ID `324b8585-34c2-4826-93ad-09b47d0da25a`, 500 MB | PASS — volume existente e montado |
 | Mount | `/var/lib/mysql` | PASS |
 | Região | `iad` | PASS |
-| Deployment MySQL | Nenhum deployment ativo; histórico com dois deployments `REMOVED` | BLOCKED |
+| Deployment MySQL | `180017b3-c197-406e-8e8f-cf0962f324d7`, MySQL 8.4.13 chegou a `ready for connections`, depois recebeu `SHUTDOWN`; estado atual `SLEEPING` | BLOCKED — não está ativo agora |
 | Métrica de disco | 0,156 GB de uso constante na janela de 7 dias | PASS — existe uso de armazenamento; não prova integridade lógica |
 | Proxy TCP | `switchyard.proxy.rlwy.net:48927`, status ACTIVE | PASS — proxy configurado |
 | Handshake MySQL | TCP conecta, mas leitura inicial não recebe greeting MySQL | FAIL |
-| Render | `GET /api.php?action=spaces` respondeu HTTP 503 em 27/11/2026 às 13:25–13:26 UTC; log PHP: `SQLSTATE[HY000] [2006] MySQL server has gone away` | FAIL |
-| Health check Render | Caminho de health check ainda vazio. No código de `main`, `/health.php` e `/ready.php` caem no fallback HTML da SPA (HTTP 200); os novos endpoints JSON existem somente na branch do PR | BLOCKED — configurar somente depois da publicação do código novo |
+| Railway app | Serviço `eventosrp`, deployment `324e440e-0830-4e44-89c9-7032235e559b`, branch `main`, estado atual `SLEEPING`; Apache iniciou e foi encerrado após inatividade | BLOCKED — domínio existe, mas smoke test externo não foi concluído |
+| Health check Railway | `/health.php` e `/ready.php` existem no PR #19, não no commit implantado da `main`; o deployment atual está `SLEEPING` | BLOCKED — requer homologação após publicação autorizada |
 | Segredos | Nomes das variáveis visíveis; valores redigidos | PASS — segredos não foram lidos nem expostos |
 
-O serviço MySQL continua existindo no Railway e o volume original permanece anexado. O que foi removido foram os deployments históricos; não há evidência de que o volume tenha sido apagado.
+O serviço MySQL e o volume original continuam existindo. O deployment atual foi executado com sucesso, o log confirmou inicialização completa e `ready for connections`, mas o Railway enviou sinal de shutdown após inatividade. Na leitura mais recente, app e MySQL estavam `SLEEPING`; não considerar a infraestrutura ativa.
 
-## 2. Causa provável a investigar
+## 2. Estado observado e causa operacional atual
 
-O comando de inicialização atual do MySQL reserva um buffer pool de 1 GiB:
+O Start Command aplicado é `docker-entrypoint.sh mysqld --innodb-use-native-aio=0 --disable-log-bin --performance_schema=0 --innodb-buffer-pool-size=128M --max-connections=20`. O deployment iniciou MySQL 8.4.13, completou a inicialização InnoDB e registrou `ready for connections`. Cerca de nove minutos depois, o log mostra `Received SHUTDOWN from user <via user signal>` e `Shutdown complete`. A configuração Railway dos dois serviços indica `sleepApplication=true`; ambos aparecem atualmente como `SLEEPING`. Portanto, a redução de memória resolveu a inicialização observada, mas a disponibilidade contínua não está resolvida. A política de sleep/custo deve ser revisada antes de manter a aplicação e o banco ativos para clientes.
 
-```text
-docker-entrypoint.sh mysqld --innodb-use-native-aio=0 --disable-log-bin --performance_schema=0 --innodb-buffer-pool-size=1G
-```
-
-A documentação oficial do Railway informa que o plano Free limita cada serviço a 0,5 GB de RAM e oferece um volume de 0,5 GB, além de US$ 1 em crédito mensal de uso. O buffer pool configurado é maior que a RAM máxima do plano Free e pode impedir a inicialização ou provocar encerramento por memória. A conta/plano efetivo e o crédito restante ainda não puderam ser confirmados pelo conector.
+O Railway documenta o TCP Proxy para conexões externas e `railway connect`/túnel SSH como alternativa para clientes MySQL; o tráfego por TCP Proxy pode gerar cobrança de egress. Prefira rede privada Railway para app→MySQL quando ambos estiverem ativos no mesmo projeto, e use proxy/túnel apenas para diagnóstico externo autorizado. (https://docs.railway.com/networking/tcp-proxy ; https://docs.railway.com/cli/connect)
 
 Referências oficiais:
 - https://docs.railway.com/pricing/free-plan
@@ -43,7 +39,7 @@ Referências oficiais:
 
 A branch inclui uma tentativa limitada de reconexão PDO para erros transitórios de rede/servidor (SQLSTATE/driver codes 1042, 1053, 2002, 2003, 2005, 2006 e 2013, além de SQLSTATE 08001/08S01): até três tentativas, timeout de conexão de 5 segundos e pausas de 1 e 2 segundos. Erros de autenticação e SQL não são repetidos. Isso ajuda quando o Railway Free desperta após sleep, mas não substitui serviço MySQL ativo, configuração correta nem monitoramento.
 
-## 3. Alteração segura preparada (ainda não aplicada)
+## 3. Configuração de memória aplicada
 
 Foi preparada uma única alteração **staged**, sem deploy:
 
@@ -51,16 +47,10 @@ Foi preparada uma única alteração **staged**, sem deploy:
 docker-entrypoint.sh mysqld --innodb-use-native-aio=0 --disable-log-bin --performance_schema=0 --innodb-buffer-pool-size=128M --max-connections=20
 ```
 
-- Patch: `d7c1bac7-91ae-4c8c-af98-d7c1356cbe90`
-- Alterações staged: 1
-- Tipo: atualização de Start Command
-- Destrutivo: não
-- Volume alterado: não
-- Deploy iniciado: não
-
-A redução para 128 MiB é uma configuração conservadora para o limite de 512 MiB do plano Free. É uma hipótese de correção, não uma confirmação de que a memória seja a única causa.
-
-**Não aceitar o deploy ainda** até confirmar que o workspace está no plano Free e que há crédito de uso disponível. O plano Free tem crédito mensal limitado; serviço ativo consome recursos. Não autorizar upgrade Hobby/Pro nem qualquer cobrança para esta recuperação.
+- O Start Command atual foi aplicado e o deployment `180017b3-c197-406e-8e8f-cf0962f324d7` iniciou MySQL 8.4.13 com sucesso.
+- Buffer pool: 128 MiB; conexões máximas: 20.
+- Volume original: preservado e anexado em `/var/lib/mysql`.
+- O serviço posteriormente entrou em `SLEEPING` por política de sleep. Não alterar `sleepApplication` nem o plano antes de confirmar custo e obter autorização.
 
 ## 4. Procedimento de recuperação e backup
 
@@ -75,8 +65,8 @@ A redução para 128 MiB é uma configuração conservadora para o limite de 512
    - confirmar tamanho, hash e restauração em MySQL descartável.
 5. Executar primeiro `database/preflight_readonly.sql` (somente leitura) e comparar schema, tabelas, índices, chaves estrangeiras e contagens de registros na restauração.
 6. Somente após backup restaurável, validar migrações 002–007 em banco descartável e depois planejar a aplicação controlada no banco real.
-7. Configurar o Render para usar o endpoint público do proxy Railway, pois o Render não está dentro da rede privada Railway. Host e porta públicos atuais: `switchyard.proxy.rlwy.net:48927`. Não copiar senha para logs, issues ou chat.
-8. Após publicar o código novo, configurar o health check Render para `/health.php` (não `/ready.php`, que depende do MySQL), validar JSON de liveness/readiness e então testar `SELECT 1`, catálogo, cadastro, upload, reserva e pagamento em sandbox.
+7. Para cliente MySQL externo, usar o TCP Proxy ativo `switchyard.proxy.rlwy.net:48927` somente para diagnóstico controlado; nunca registrar senha em logs/issues/chat. Para app→MySQL no mesmo projeto Railway, validar o hostname privado e manter o tráfego na rede privada, sem assumir o valor de `DB_HOST` antes de conferir as variáveis.
+8. Após publicar o PR em ambiente de homologação autorizado e resolver a política de sleep, testar `/health.php` (liveness) e `/ready.php` (readiness MySQL), `SELECT 1`, catálogo, cadastro, upload e reservas. Pagamentos permanecem reservados para a última etapa.
 
 A documentação do Railway confirma que o volume é persistente entre deployments; o deploy do container não deve ser confundido com apagar o volume. Ainda assim, o backup lógico é obrigatório antes de qualquer migração.
 
@@ -85,16 +75,16 @@ A documentação do Railway confirma que o volume é persistente entre deploymen
 - Nenhuma variável secreta foi lida.
 - Nenhum serviço ou volume foi criado, apagado, redimensionado ou desconectado.
 - Nenhum plano foi alterado.
-- Nenhum deploy/rollback foi iniciado.
+- O deployment de recuperação do MySQL foi iniciado e concluiu a inicialização; nenhum deploy do PR #19 foi iniciado.
 - Nenhuma migração foi executada.
 - O conector Aiven apresentou erro interno ao listar projetos e serviços; não foi possível confirmar se existe um banco Aiven alternativo.
 - A conta Cloudinary está no plano Free, com 0,17/25 créditos usados e 64 assets de amostra. Nenhum asset foi removido ou reutilizado; os assets atuais não foram tratados como fotos reais do Reservas RP.
 
 ## 6. Próxima confirmação operacional
 
-A única informação que falta para continuar sem gerar custos é a confirmação visual no painel Railway de:
+Para tornar a infraestrutura utilizável pelo cliente, ainda é necessário confirmar no painel Railway:
 - plano ativo (Free/Trial/Hobby/Pro);
 - crédito de uso restante no ciclo;
 - se a página do serviço MySQL permite iniciar o deployment sem solicitar upgrade.
 
-Se o painel exigir plano pago ou se o crédito Free estiver esgotado, parar aqui. Não aceitar upgrade automaticamente.
+Também é necessário decidir se o plano atual permite manter app e banco ativos sem sleep. Se exigir upgrade ou cobrança, parar e pedir autorização; não aceitar upgrade automaticamente.
