@@ -218,7 +218,7 @@ try {
    $q=$pdo->prepare('SELECT id,photos FROM spaces WHERE id=? AND owner_id=? FOR UPDATE');$q->execute([$id,$userId]);$existingSpace=$q->fetch(PDO::FETCH_ASSOC);
    if(!$existingSpace){$pdo->rollBack();respond(['error'=>'Espaço não encontrado para esta conta.'],404);}
    $oldPhotos=json_decode($existingSpace['photos']??'[]',true);$oldPhotos=is_array($oldPhotos)?array_values(array_filter($oldPhotos,'is_string')):[];
-   $sets=implode(',',array_map(fn($key)=>$key.'=?',array_keys($data)));$q=$pdo->prepare('UPDATE spaces SET '.$sets.' WHERE id=? AND owner_id=?');$q->execute([...array_values($data),$id,$userId]);
+   $sets=implode(',',array_map(fn($key)=>$key.'=?',array_keys($data)));$q=$pdo->prepare('UPDATE spaces SET '.$sets.',is_demo=0 WHERE id=? AND owner_id=?');$q->execute([...array_values($data),$id,$userId]);
   }else{
    $data['owner_id']=$userId;$data['is_demo']=0;$columns=implode(',',array_keys($data));$marks=implode(',',array_fill(0,count($data),'?'));
    $q=$pdo->prepare('INSERT INTO spaces ('.$columns.') VALUES ('.$marks.')');$q->execute(array_values($data));$id=(int)$pdo->lastInsertId();
