@@ -53,14 +53,40 @@ foreach ($testTokens as $testToken) {
     if ($requirementsStatus !== 200 || !is_array($requirements) || empty($requirements['terms_version']) || empty($requirements['privacy_version'])) {
         failTest('The isolated test adapter must expose deterministic consent requirements: HTTP ' . $requirementsStatus . ' ' . $requirementsRaw);
     }
+    [$statusBefore, $statusBeforeData] = apiRequest($base, 'account-consent-status', $testToken);
+    if ($statusBefore !== 200 || ($statusBeforeData['accepted'] ?? true) !== false) {
+        failTest('A new isolated account must start without current consent.');
+    }
+    [$blockedStatus] = apiRequest($base, 'my-spaces', $testToken);
+    if ($blockedStatus !== 403) failTest('Business routes must be blocked before account consent.');
+    [$falseStatus] = apiRequest($base, 'account-consent', $testToken, 'POST', [
+        'accepted' => false,
+        'terms_version' => $requirements['terms_version'],
+        'privacy_version' => $requirements['privacy_version'],
+    ]);
+    if ($falseStatus !== 422) failTest('A false consent flag must be rejected.');
+    [$staleStatus] = apiRequest($base, 'account-consent', $testToken, 'POST', [
+        'accepted' => true,
+        'terms_version' => 'stale-version',
+        'privacy_version' => $requirements['privacy_version'],
+    ]);
+    if ($staleStatus !== 409) failTest('A stale document version must be rejected.');
     [$consentStatus, $consent, $consentRaw] = apiRequest($base, 'account-consent', $testToken, 'POST', [
         'accepted' => true,
         'terms_version' => $requirements['terms_version'],
         'privacy_version' => $requirements['privacy_version'],
         'accepted_at' => '1900-01-01 00:00:00',
     ]);
-    if ($consentStatus !== 200 || ($consent['accepted'] ?? false) !== true || empty($consent['accepted_at'])) {
-        failTest('The isolated test adapter must persist account consent using server time: HTTP ' . $consentStatus . ' ' . $consentRaw);
+    if ($consentStatus !== 200 || ($consent['accepted'] ?? false) !== true || empty($consent['accepted_at']) || str_starts_with($consent['accepted_at'], '1900-')) {
+        failTest('The isolated test adapter must persist account consent using server time, never client time: HTTP ' . $consentStatus . ' ' . $consentRaw);
+    }
+    [$repeatStatus, $repeatConsent] = apiRequest($base, 'account-consent', $testToken, 'POST', [
+        'accepted' => true,
+        'terms_version' => $requirements['terms_version'],
+        'privacy_version' => $requirements['privacy_version'],
+    ]);
+    if ($repeatStatus !== 200 || ($repeatConsent['accepted_at'] ?? null) !== $consent['accepted_at']) {
+        failTest('Repeated consent acceptance must be idempotent and preserve the original server timestamp.');
     }
 }
 
