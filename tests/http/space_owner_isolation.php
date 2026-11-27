@@ -46,7 +46,6 @@ $testTokens = [
     'isolated-http-test-owner-a',
     'isolated-http-test-owner-b',
     'isolated-http-test-admin',
-    'isolated-http-test-token',
 ];
 foreach ($testTokens as $testToken) {
     [$requirementsStatus, $requirements, $requirementsRaw] = apiRequest($base, 'account-consent-requirements', $testToken);
