@@ -42,6 +42,28 @@ $ownerA = 'isolated-http-test-owner-a';
 $ownerB = 'isolated-http-test-owner-b';
 $ids = [];
 
+$testTokens = [
+    'isolated-http-test-owner-a',
+    'isolated-http-test-owner-b',
+    'isolated-http-test-admin',
+    'isolated-http-test-token',
+];
+foreach ($testTokens as $testToken) {
+    [$requirementsStatus, $requirements, $requirementsRaw] = apiRequest($base, 'account-consent-requirements', $testToken);
+    if ($requirementsStatus !== 200 || !is_array($requirements) || empty($requirements['terms_version']) || empty($requirements['privacy_version'])) {
+        failTest('The isolated test adapter must expose deterministic consent requirements: HTTP ' . $requirementsStatus . ' ' . $requirementsRaw);
+    }
+    [$consentStatus, $consent, $consentRaw] = apiRequest($base, 'account-consent', $testToken, 'POST', [
+        'accepted' => true,
+        'terms_version' => $requirements['terms_version'],
+        'privacy_version' => $requirements['privacy_version'],
+        'accepted_at' => '1900-01-01 00:00:00',
+    ]);
+    if ($consentStatus !== 200 || ($consent['accepted'] ?? false) !== true || empty($consent['accepted_at'])) {
+        failTest('The isolated test adapter must persist account consent using server time: HTTP ' . $consentStatus . ' ' . $consentRaw);
+    }
+}
+
 for ($i = 1; $i <= 3; $i++) {
     $payload = [
         'name' => 'Espaço isolado A' . $i,
