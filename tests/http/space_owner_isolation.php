@@ -95,6 +95,26 @@ $ownerQuery->execute(['eventosrp-http-test-owner-b']);
 $ownerBId = (int)$ownerQuery->fetchColumn();
 if ($ownerAId < 1 || $ownerBId < 1 || $ownerAId === $ownerBId) failTest('Owner test accounts were not isolated in the users table.');
 
+$ownerStatusQuery = $pdo->prepare('SELECT owner_status FROM users WHERE id=?');
+$ownerStatusQuery->execute([$ownerAId]);
+if ($ownerStatusQuery->fetchColumn() !== 'pending') failTest('Creating a listing must submit the owner account for approval.');
+
+[$nonAdminStatus] = apiRequest($base, 'owner-requests', $ownerA);
+if ($nonAdminStatus !== 403) failTest('A normal owner must not access the platform approval queue.');
+
+[$adminQueueStatus, $adminQueue, $adminQueueRaw] = apiRequest($base, 'owner-requests', 'isolated-http-test-admin');
+if ($adminQueueStatus !== 200 || !is_array($adminQueue) || !in_array('eventosrp-http-test-owner-a', array_column($adminQueue, 'firebase_uid'), true)) {
+    failTest('The platform administrator must see pending owner applications: HTTP ' . $adminQueueStatus . ' ' . $adminQueueRaw);
+}
+[$approvalStatus, $approval, $approvalRaw] = apiRequest($base, 'review-owner', 'isolated-http-test-admin', 'POST', [
+    'firebase_uid' => 'eventosrp-http-test-owner-a',
+    'decision' => 'approved',
+]);
+if ($approvalStatus !== 200 || ($approval['owner_status'] ?? '') !== 'approved') {
+    failTest('The platform administrator must be able to approve an owner: HTTP ' . $approvalStatus . ' ' . $approvalRaw);
+}
+
+
 $promote = $pdo->prepare('UPDATE spaces SET is_demo=1 WHERE id=? AND owner_id=?');
 $promote->execute([$ids[0], $ownerAId]);
 
