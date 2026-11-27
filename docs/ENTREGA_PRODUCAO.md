@@ -24,12 +24,13 @@ Atualizado em 27/11/2026. Este documento distingue testes automatizados do pacot
 3. [ ] Gerar backup lógico, calcular SHA-256 e testar restauração em banco separado.
 4. [ ] Comparar schema real com migrations 002–007; aplicar somente as migrations realmente pendentes, após backup restaurável e autorização operacional.
 5. [ ] Homologar o endpoint `/health.php` e `/ready.php` após publicação autorizada do PR.
-6. [ ] Configurar e testar Firebase com duas contas controladas.
-7. [ ] Configurar Cloudinary e testar upload, validação e isolamento entre proprietários.
-8. [ ] Cadastrar um espaço real com autorização, endereço, capacidade, preço, horários, regras e fotos reais.
-9. [ ] Validar cadastro, catálogo, autorização, reservas e concorrência em ambiente de homologação.
-10. [ ] Revisar os dados da operadora, termos, privacidade, cancelamentos e atendimento.
-11. [ ] Deixar Mercado Pago, credenciais reais, webhook e homologação de pagamento para a etapa final, conforme decisão do responsável.
+6. [ ] Publicar e validar `database.rules.json` no projeto Firebase correto do Reservas RP; testar leitura/escrita de chat por cliente e proprietário e negar usuário externo.
+7. [ ] Configurar e testar Firebase Authentication com duas contas controladas.
+8. [ ] Configurar Cloudinary e testar upload, validação e isolamento entre proprietários.
+9. [ ] Cadastrar um espaço real com autorização, endereço, capacidade, preço, horários, regras e fotos reais.
+10. [ ] Validar cadastro, catálogo, autorização, reservas e concorrência em ambiente de homologação.
+11. [ ] Revisar os dados da operadora, termos, privacidade, cancelamentos e atendimento.
+12. [ ] Deixar Mercado Pago, credenciais reais, webhook e homologação de pagamento para a etapa final, conforme decisão do responsável.
 
 ## Bloqueios que não podem ser mascarados
 
