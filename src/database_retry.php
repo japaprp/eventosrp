@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 function isTransientDatabaseConnectionError(PDOException $error): bool {
-    $sqlState = (string) $error->getCode();
+    $sqlState = isset($error->errorInfo[0]) ? (string) $error->errorInfo[0] : (string) $error->getCode();
     if (in_array($sqlState, ['08001', '08S01'], true)) return true;
 
     $driverCode = isset($error->errorInfo[1]) ? (int) $error->errorInfo[1] : 0;
