@@ -140,7 +140,7 @@ function paymentLifecycleReconcileOverlappingHolds(PDO $pdo, int $spaceId, strin
 
 try {
  $action=$_GET['action']??'';$method=$_SERVER['REQUEST_METHOD'];
- if($action==='spaces'&&$method==='GET'){$rows=database()->query('SELECT * FROM spaces WHERE active=1 AND is_demo=0 ORDER BY id DESC')->fetchAll(PDO::FETCH_ASSOC);respond(array_map('publicSpace',$rows));}
+ if($action==='spaces'&&$method==='GET'){$rows=database()->query("SELECT * FROM spaces WHERE active=1 AND is_demo=0 AND (owner_id IS NULL OR owner_id IN (SELECT id FROM users WHERE owner_status='approved')) ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);respond(array_map('publicSpace',$rows));}
  if($action==='webhook') {
   if(!requestIsSecure())respond(['error'=>'HTTPS obrigatório.'],400);
   if($method!=='POST')respond(['error'=>'Método não permitido.'],405);
