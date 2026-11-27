@@ -5,7 +5,7 @@
 Esta seção prevalece sobre notas históricas abaixo quando houver divergência de status. O repositório é `japaprp/eventosrp`; o trabalho de entrega está isolado em `delivery/2026-11-27-production-readiness`, PR #19 em rascunho. A branch `main` permanece no commit `3c0168ce938be20059aa8eb512a28fb7c75ee829`.
 
 ### Código e testes
-- O pacote atual inclui cadastro de múltiplos espaços por proprietário, fotos via upload assinado Cloudinary, autorização do proprietário, aceite das condições da reserva, ciclo de pagamentos mais completo, reconciliação, endpoints health/readiness e retry PDO limitado para erros transitórios/cold start do MySQL.
+- O pacote atual inclui cadastro de múltiplos espaços, aprovação administrativa de proprietários, fotos via upload assinado Cloudinary, solicitações de reserva sem cobrança por padrão, confirmação/recusa pelo proprietário, aceite das condições da reserva, ciclo de pagamentos desativado por configuração, reconciliação, endpoints health/readiness e retry PDO limitado.
 - Os testes de PHP, frontend, navegador, concorrência MySQL, concorrência HTTP e ciclo de pagamentos passaram no último commit de código testado.
 - O workflow HTTP também validou `database/preflight_readonly.sql`, os endpoints `/health.php` e `/ready.php), isolamento de três espaços por proprietário e proteção contra configuração insegura de teste.
 - Os últimos commits de documentação não alteram código de produção.
@@ -32,9 +32,9 @@ Esta seção prevalece sobre notas históricas abaixo quando houver divergência
 1. Confirmar no Railway plano Free/Trial e crédito de uso restante; sem upgrade.
 2. Se a execução puder ocorrer dentro do limite gratuito, revisar e aplicar o único patch staged para iniciar o MySQL com memória compatível.
 3. Fazer backup lógico, SHA-256 e restauração em banco descartável; executar `database/preflight_readonly.sql`.
-4. Inspecionar schema real e comparar com migrations 002–007; aplicar somente as ausentes, depois do backup restaurável.
+4. Inspecionar schema real e comparar com migrations 002–009; aplicar somente as ausentes, depois do backup restaurável e autorização.
 5. Corrigir/confirmar host e porta pública do Railway no Render; validar `SELECT 1` e catálogo.
-6. Configurar e homologar Firebase, Cloudinary e Mercado Pago sem expor segredos.
+6. Configurar `PLATFORM_ADMIN_FIREBASE_UID`, homologar Firebase e Cloudinary sem expor segredos; manter Mercado Pago para a última etapa.
 7. Completar dados da operadora e textos legais, persistir aceite da conta e cadastrar pelo menos um espaço real com fotos autorizadas.
 8. Só então revisar release, merge e deploy mediante autorização específica.
 
