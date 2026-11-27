@@ -66,6 +66,9 @@ for ($i = 1; $i <= 3; $i++) {
     if ($status !== 201 || !is_array($data) || empty($data['id'])) {
         failTest("Owner A could not create space {$i}: HTTP {$status} {$raw}");
     }
+    if (($data['active'] ?? true) !== false) {
+        failTest('A new owner listing must remain unpublished until platform approval.');
+    }
     $ids[] = (int)$data['id'];
 }
 if (count(array_unique($ids)) !== 3) failTest('Three spaces did not receive independent IDs.');
