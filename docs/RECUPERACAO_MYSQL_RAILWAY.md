@@ -19,6 +19,7 @@
 | Proxy TCP | `switchyard.proxy.rlwy.net:48927`, status ACTIVE | PASS — proxy configurado |
 | Handshake MySQL | TCP conecta, mas leitura inicial não recebe greeting MySQL | FAIL |
 | Render | `GET /api.php?action=spaces` respondeu HTTP 503 em 27/11/2026 às 13:25–13:26 UTC; log PHP: `SQLSTATE[HY000] [2006] MySQL server has gone away` | FAIL |
+| Health check Render | Caminho de health check ainda vazio. No código de `main`, `/health.php` e `/ready.php` caem no fallback HTML da SPA (HTTP 200); os novos endpoints JSON existem somente na branch do PR | BLOCKED — configurar somente depois da publicação do código novo |
 | Segredos | Nomes das variáveis visíveis; valores redigidos | PASS — segredos não foram lidos nem expostos |
 
 O serviço MySQL continua existindo no Railway e o volume original permanece anexado. O que foi removido foram os deployments históricos; não há evidência de que o volume tenha sido apagado.
@@ -71,7 +72,7 @@ A redução para 128 MiB é uma configuração conservadora para o limite de 512
 5. Executar primeiro `database/preflight_readonly.sql` (somente leitura) e comparar schema, tabelas, índices, chaves estrangeiras e contagens de registros na restauração.
 6. Somente após backup restaurável, validar migrações 002–007 em banco descartável e depois planejar a aplicação controlada no banco real.
 7. Configurar o Render para usar o endpoint público do proxy Railway, pois o Render não está dentro da rede privada Railway. Host e porta públicos atuais: `switchyard.proxy.rlwy.net:48927`. Não copiar senha para logs, issues ou chat.
-8. Validar `SELECT 1`, catálogo, cadastro, upload, reserva e pagamento em sandbox.
+8. Após publicar o código novo, configurar o health check Render para `/health.php` (não `/ready.php`, que depende do MySQL), validar JSON de liveness/readiness e então testar `SELECT 1`, catálogo, cadastro, upload, reserva e pagamento em sandbox.
 
 A documentação do Railway confirma que o volume é persistente entre deployments; o deploy do container não deve ser confundido com apagar o volume. Ainda assim, o backup lógico é obrigatório antes de qualquer migração.
 
