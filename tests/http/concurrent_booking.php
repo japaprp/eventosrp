@@ -26,6 +26,22 @@ function request(string $url, string $method = 'GET', ?array $body = null): arra
 }
 
 $base = rtrim(getenv('HTTP_TEST_BASE_URL') ?: 'http://127.0.0.1:8088', '/');
+[$requirementsStatus, $requirementsBody] = request($base . '/api.php?action=account-consent-requirements');
+$requirements = json_decode($requirementsBody, true);
+if ($requirementsStatus !== 200 || !is_array($requirements) || empty($requirements['terms_version']) || empty($requirements['privacy_version'])) {
+    failTest('The isolated HTTP adapter must provide deterministic account consent requirements.');
+}
+[$consentStatus, $consentBody] = request($base . '/api.php?action=account-consent', 'POST', [
+    'accepted' => true,
+    'terms_version' => $requirements['terms_version'],
+    'privacy_version' => $requirements['privacy_version'],
+    'accepted_at' => '1900-01-01 00:00:00',
+]);
+$consent = json_decode($consentBody, true);
+if ($consentStatus !== 200 || !is_array($consent) || ($consent['accepted'] ?? false) !== true || empty($consent['accepted_at'])) {
+    failTest('The account consent endpoint must persist acceptance using server time: ' . $consentBody);
+}
+
 $ready = false;
 for ($attempt = 0; $attempt < 60; $attempt++) {
     [$status] = request($base . '/api.php?action=spaces');
