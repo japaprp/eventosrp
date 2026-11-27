@@ -40,6 +40,8 @@ Este documento é uma lista operacional. Não substitui parecer jurídico nem co
 - [ ] Confirmar que não há registros demonstrativos ativos no catálogo.
 - [ ] Testar cadastro de cliente e proprietário com contas controladas pelo responsável do projeto.
 - [ ] Confirmar que o cadastro Firebase, perfil MySQL, aceite de termos da conta e recuperação de senha funcionam ponta a ponta.
+- [ ] Homologar aprovação administrativa de proprietários, sem possibilidade de autoaprovação.
+- [ ] Homologar solicitações de reserva sem pagamento, confirmação/recusa pelo proprietário e isolamento entre contas.
 
 ## Evidência técnica mínima antes de abrir
 
@@ -63,5 +65,8 @@ Este documento é uma lista operacional. Não substitui parecer jurídico nem co
 - O serviço não apresentou variáveis de pagamento `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET`; a integração real permanece reservada para a última etapa.
 - O Cloudinary exige três variáveis privadas no ambiente de hospedagem. A conta Free listou 64 assets de amostra e nenhum asset com prefixo `eventosrp`; não reutilizar assets de amostra como conteúdo do cliente.
 - A conciliação agendada precisa do mesmo segredo privado no serviço PHP e nos GitHub Actions secrets.
-- O aceite de termos da conta ainda não é persistido no backend. O aceite da declaração de autorização do proprietário é um registro separado e já implementado.
+- O aceite de termos da conta ainda não é persistido no backend; os textos legais permanecem provisórios e precisam de dados da operadora e revisão jurídica. O aceite da declaração de autorização do proprietário é um registro separado.
+- A aprovação de proprietários usa `PLATFORM_ADMIN_FIREBASE_UID`; essa variável privada precisa ser configurada no servidor antes de aprovar contas.
+- O modo de reservas padrão é `request`, sem cobrança. Mercado Pago permanece desativado até a última etapa.
+- Cloudflare não tem zona/domínio conectado. WAF/proxy não pode ser habilitado sem domínio próprio; RLS/Hyperdrive não se aplica ao MySQL Railway.
 - Não há split, comissão, repasse nem reembolso automático.
