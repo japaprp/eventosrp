@@ -2,15 +2,16 @@
 
 Aplicação web em português com catálogo público, cadastro de clientes e proprietários, anúncios individuais, solicitações de reserva sem cobrança por padrão, Firebase Authentication/Realtime Database, MySQL e upload de imagens pelo Cloudinary. Mercado Pago permanece desativado até a etapa final.
 
-## Estado operacional verificado — 27/11/2026
+## Estado operacional verificado — 27/11/2026, 20:38 UTC
 
-- O pacote de entrega está no PR #19, branch `delivery/2026-11-27-production-readiness`, mantido como draft.
-- No HEAD `717a549274e6e95edfab93943a4d3a930ca56ead`, cinco workflows GitHub Actions concluíram com sucesso: Tests #160, Isolated HTTP #92, MySQL booking concurrency #84, MySQL payment lifecycle #82 e Reservas RP checks #98. O HTTP isolado validou aprovação de proprietários, solicitações sem cobrança, confirmação/recusa e concorrência 201/409. Isso não substitui homologação externa.
-- O serviço PHP `eventosrp` está configurado no Railway, conectado à branch `main`, commit `c1431ba4327bb3f35419a3328ea2bcdb7d966a1c`. Na inspeção de 27/11/2026 às 17:31 UTC, o estado era `SLEEPING`; `sleepApplication=true` (Serverless). O Railway acorda o serviço quando recebe uma requisição, mas o primeiro acesso pode ter cold start e ocasionalmente retornar 502. Esse deployment não contém as alterações exclusivas do PR #19.
-- O serviço MySQL Railway está configurado com `sleepApplication=true` e também estava `SLEEPING` na inspeção de 27/11/2026 às 17:31 UTC. O Railway acorda bancos Serverless na próxima conexão; o log do deployment comprova que MySQL 8.4.13 chegou a `ready for connections` e depois recebeu `SHUTDOWN` por inatividade. O volume original de 500 MB permanece anexado.
-- O estado online do processo MySQL não comprova autenticação, integridade do schema ou acesso aos dados. O conector de banco Railway não está habilitado nesta conta; `SELECT 1`, inventário SQL, backup lógico e restauração permanecem não executados.
-- O domínio Railway existe, mas o teste HTTP externo não foi concluído (o acesso de verificação retornou erro interno) e não houve requisições HTTP nos logs consultados. Como o deployment está `SLEEPING`, a disponibilidade real e o cold start ainda precisam ser testados.
-- O PR #19 não foi integrado nem implantado. Não executar migrations em produção antes de backup restaurável e preflight no banco real.
+- PR #20 removeu as imagens de demonstração da página pública e foi integrado no commit `ede73868a5518e90400e52ba850da3a94d7a197f`.
+- Railway publicou esse commit no serviço `eventosrp`: deployment `f6339668-91a3-4549-8b5e-537fa914a050`, status `SUCCESS`; ambiente reportou a aplicação online com uma réplica e zero falhas recentes.
+- A página pública não usa imagens Unsplash como se fossem espaços ou clientes. O hero é uma ilustração abstrata; anúncios sem foto exibem placeholder explícito; o filtro de localização é derivado dos anúncios publicados; FAQ e avisos legais foram corrigidos.
+- O hotfix passou em node check, npm test, testes PHP, lint e regressão de navegador.
+- PR #19 permanece draft e aberto. Sua branch foi sincronizada com o hotfix e o HEAD atual é `105ea58c53ff96fcd2183f0307ae993903c2f003`; os cinco workflows concluíram PASS: Tests #165, Isolated HTTP #97, MySQL payment lifecycle #87, MySQL booking concurrency #89 e Reservas RP checks #105.
+- MySQL continua `SLEEPING`, com o volume original de 500 MB anexado. As ferramentas de banco Railway não estão habilitadas nesta conta: autenticação SQL, `SELECT 1`, inventário, backup lógico e restauração seguem BLOCKED/NOT RUN. A informação de que não existem clientes foi fornecida pelo responsável, mas não foi possível verificá-la diretamente no banco.
+- Não houve migration, alteração do volume, exclusão de dados, alteração de segredo, publicação de regras Firebase ou ativação de pagamento.
+- Smoke test HTTP público pós-deploy não foi concluído pelo ambiente de verificação; deployment SUCCESS não substitui teste ponta a ponta.
 
 Não declare a aplicação pronta para abertura comercial até concluir as validações operacionais, de armazenamento, autenticação, conteúdo real e revisão legal descritas em `docs/ENTREGA_PRODUCAO.md` e `docs/LEGAL_OPERATIONS_RELEASE_CHECKLIST.md`.
 
