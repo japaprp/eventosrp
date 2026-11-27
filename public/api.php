@@ -157,6 +157,7 @@ try {
  if($action==='reconcile-expired-holds') {
   if(!requestIsSecure())respond(['error'=>'HTTPS obrigatório.'],400);
   if($method!=='POST')respond(['error'=>'Método não permitido.'],405);
+  if(env('RESERVATIONS_PAYMENT_MODE','request')!=='payment')respond(['disabled'=>true,'reason'=>'Pagamentos estão desativados.'],503);
   $configuredSecret=env('RESERVATION_RECONCILE_SECRET');
   $providedHeader=$_SERVER['HTTP_AUTHORIZATION']??'';
   if(strlen($configuredSecret)<32)respond(['error'=>'Reconciliação agendada não configurada.'],503);
@@ -313,7 +314,7 @@ try {
  try{$preQuote=bookingQuote($input['check_in']??null,$input['check_out']??null,$plan,(string)$preSpace['daily_price'],$preSpace['weekend_price']===null?null:(string)$preSpace['weekend_price']);enforceSpaceSchedule($preSpace,$preQuote);}
  catch(InvalidArgumentException $e){respond(['error'=>$e->getMessage()],422);}
  $preBlockedUntil=(new DateTimeImmutable($preQuote['check_out'],new DateTimeZone('America/Sao_Paulo')))->modify('+'.(int)$preSpace['cleanup_minutes'].' minutes')->format('Y-m-d H:i:s');
- paymentLifecycleReconcileOverlappingHolds($pdo,(int)$spaceId,$preQuote['check_in'],$preBlockedUntil);
+ if(env('RESERVATIONS_PAYMENT_MODE','request')==='payment')paymentLifecycleReconcileOverlappingHolds($pdo,(int)$spaceId,$preQuote['check_in'],$preBlockedUntil);
  $pdo->beginTransaction();$q=$pdo->prepare('SELECT * FROM spaces WHERE id=? FOR UPDATE');$q->execute([$spaceId]);$space=$q->fetch(PDO::FETCH_ASSOC);
  if(!$space||!$space['active']||!empty($space['is_demo'])||$guests>$space['capacity']){$pdo->rollBack();respond(['error'=>'Espaço indisponível ou capacidade inválida.'],422);}
  try{$quote=bookingQuote($input['check_in']??null,$input['check_out']??null,$plan,(string)$space['daily_price'],$space['weekend_price']===null?null:(string)$space['weekend_price']);enforceSpaceSchedule($space,$quote);}
