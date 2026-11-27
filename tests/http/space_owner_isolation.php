@@ -174,14 +174,34 @@ foreach ([$ids[1], $ids[2]] as $spaceId) {
         'terms_accepted' => true,
     ];
     [$bookingStatus, $bookingResponse, $bookingRaw] = apiRequest($base, 'reserve', 'isolated-http-test-token', 'POST', $booking);
-    if ($bookingStatus !== 201 || !is_array($bookingResponse) || empty($bookingResponse['reservation_id']) || empty($bookingResponse['checkout_url'])) {
-        failTest('Same period should be reservable in different spaces: HTTP ' . $bookingStatus . ' ' . $bookingRaw);
+    if ($bookingStatus !== 201 || !is_array($bookingResponse) || empty($bookingResponse['reservation_id']) || ($bookingResponse['status'] ?? '') !== 'requested' || isset($bookingResponse['checkout_url'])) {
+        failTest('Same period should create a payment-free request in different spaces: HTTP ' . $bookingStatus . ' ' . $bookingRaw);
     }
     $bookingIds[] = (string)$bookingResponse['reservation_id'];
 }
-$bookingCheck = $pdo->prepare("SELECT COUNT(DISTINCT space_id) FROM reservations WHERE id IN (?,?) AND status='pending'");
+$bookingCheck = $pdo->prepare("SELECT COUNT(DISTINCT space_id) FROM reservations WHERE id IN (?,?) AND status='requested'");
 $bookingCheck->execute($bookingIds);
 if ((int)$bookingCheck->fetchColumn() !== 2) failTest('Reservations in different spaces were not persisted independently.');
+
+[$confirmStatus, $confirmed, $confirmRaw] = apiRequest($base, 'review-reservation', $ownerA, 'POST', [
+    'reservation_id' => $bookingIds[0],
+    'decision' => 'confirmed',
+]);
+if ($confirmStatus !== 200 || ($confirmed['status'] ?? '') !== 'confirmed') {
+    failTest('The owner must be able to confirm a requested reservation: HTTP ' . $confirmStatus . ' ' . $confirmRaw);
+}
+[$declineStatus, $declined, $declineRaw] = apiRequest($base, 'review-reservation', $ownerA, 'POST', [
+    'reservation_id' => $bookingIds[1],
+    'decision' => 'declined',
+]);
+if ($declineStatus !== 200 || ($declined['status'] ?? '') !== 'declined') {
+    failTest('The owner must be able to decline a requested reservation: HTTP ' . $declineStatus . ' ' . $declineRaw);
+}
+[$crossOwnerReviewStatus] = apiRequest($base, 'review-reservation', $ownerB, 'POST', [
+    'reservation_id' => $bookingIds[0],
+    'decision' => 'declined',
+]);
+if ($crossOwnerReviewStatus !== 404) failTest('Another owner must not review a reservation for a different space.');
 
 [$customerChatStatus, $customerChat] = apiRequest($base, 'chat-access', 'isolated-http-test-token', 'POST', ['reservation_id' => $bookingIds[0]]);
 if ($customerChatStatus !== 200 || ($customerChat['authorized'] ?? false) !== true) {
