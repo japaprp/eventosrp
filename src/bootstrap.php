@@ -8,14 +8,7 @@ function env(string $key, string $default = ''): string {
     return $value === false || $value === null || $value === '' ? $default : (string) $value;
 }
 
-function isTransientDatabaseConnectionError(PDOException $error): bool {
-    $sqlState = (string) $error->getCode();
-    $driverCode = isset($error->errorInfo[1]) ? (int) $error->errorInfo[1] : 0;
-    if ($driverCode === 0 && ctype_digit($sqlState)) $driverCode = (int) $sqlState;
-
-    return in_array($sqlState, ['08001', '08S01', 'HY000'], true)
-        && in_array($driverCode, [1042, 1053, 2002, 2003, 2005, 2006, 2013], true);
-}
+require_once __DIR__ . '/database_retry.php';
 
 function database(): PDO {
     static $pdo;
