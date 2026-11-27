@@ -1,6 +1,6 @@
 # Reservas RP — locação de espaços
 
-Aplicação web em português com catálogo público, cadastro de clientes e proprietários, anúncios individuais, reservas por período, Firebase Authentication/Realtime Database, MySQL, Mercado Pago Checkout Pro e upload de imagens pelo Cloudinary.
+Aplicação web em português com catálogo público, cadastro de clientes e proprietários, anúncios individuais, solicitações de reserva sem cobrança por padrão, Firebase Authentication/Realtime Database, MySQL e upload de imagens pelo Cloudinary. Mercado Pago permanece desativado até a etapa final.
 
 ## Estado operacional verificado — 27/11/2026
 
@@ -22,14 +22,16 @@ Não declare a aplicação pronta para abertura comercial até concluir as valid
 4. Para um banco novo, importe `database/schema.sql`.
 5. Execute `php -S localhost:8080 -t public` e abra `http://localhost:8080`.
 
-Não reimporte o schema em banco existente. Faça backup e aplique, uma única vez, as migrações pendentes: `002_booking_periods.sql`, `003_space_management.sql`, `004_reservation_agreement.sql`, `005_payment_lifecycle.sql`, `006_space_authorization.sql` e `007_hide_demo_spaces.sql`. Confirme o estado de cada tabela antes de executar. Nenhuma migração foi aplicada ao banco Railway de produção nesta entrega.
+Não reimporte o schema em banco existente. Faça backup e aplique, uma única vez, as migrações pendentes: `002_booking_periods.sql`, `003_space_management.sql`, `004_reservation_agreement.sql`, `005_payment_lifecycle.sql`, `006_space_authorization.sql`, `007_hide_demo_spaces.sql`, `008_owner_approval.sql` e `009_payment_free_reservation_requests.sql`. Confirme o estado de cada tabela antes de executar. Nenhuma migração foi aplicada ao banco Railway de produção nesta entrega.
 
 ## Variáveis privadas
 
 - MySQL: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` e, quando o provedor exigir CA privada, `DB_SSL_CA`.
 - Firebase: `FIREBASE_CREDENTIALS_JSON` (JSON completo da conta de serviço) ou `FIREBASE_CREDENTIALS` (caminho privado para o arquivo JSON), além das variáveis públicas `FIREBASE_*`.
 - Firebase Realtime Database: as regras de chat estão versionadas em `database.rules.json`. Depois de confirmar o projeto Firebase correto do Reservas RP, revisar e publicar somente as regras com `firebase deploy --only database --project <ID_DO_PROJETO_FIREBASE_RESERVAS_RP>`. Não reutilizar o projeto Firebase de outro produto. O deploy das regras ainda precisa de homologação no Firebase Emulator e no projeto real.
-- Mercado Pago: `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`, `MP_SANDBOX`, `APP_URL`.
+- Administrador da plataforma: `PLATFORM_ADMIN_FIREBASE_UID` (UID Firebase exclusivo do administrador; manter somente no ambiente privado do servidor).
+- Reservas: `RESERVATIONS_PAYMENT_MODE=request` por padrão. Não alterar para `payment` até a etapa final e autorização expressa.
+- Mercado Pago: `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`, `MP_SANDBOX`, `APP_URL` (não são usados no modo `request`).
 - Cloudinary: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`.
 - Conciliação agendada: `RESERVATION_RECONCILE_SECRET` (mínimo 32 caracteres aleatórios).
 
@@ -39,7 +41,7 @@ Nunca coloque segredos em `public/`, no JavaScript, no repositório ou em mensag
 
 O cadastro e o login são feitos pelo Firebase Authentication. O backend valida o ID token antes de acessar dados privados. O perfil de nome e telefone é sincronizado com MySQL no primeiro acesso autenticado à API; se o banco estiver indisponível, a conta Firebase pode existir, mas o perfil e as reservas não estarão operacionais até a recuperação do banco.
 
-O proprietário pode cadastrar mais de um espaço na mesma conta. Cada anúncio possui id e calendário de reservas próprios. A API filtra por `owner_id` e verifica a titularidade antes de permitir edição. O formulário não preenche cidade, capacidade, preços, tipo ou horários com valores fictícios. O anúncio começa pausado; o proprietário precisa confirmar os dados e publicar.
+O proprietário pode cadastrar mais de um espaço na mesma conta. Cada anúncio possui id e calendário de reservas próprios. A API filtra por `owner_id` e verifica a titularidade antes de permitir edição. O formulário não preenche cidade, capacidade, preços, tipo ou horários com valores fictícios. A primeira publicação cria uma solicitação de proprietário; todos os anúncios ficam pausados até aprovação por `platform_admin`. A aprovação é verificada no backend por `PLATFORM_ADMIN_FIREBASE_UID`; o proprietário não pode aprovar a própria conta.
 
 A declaração de responsabilidade/autorização do proprietário é obrigatória e fica registrada no MySQL com data/hora e versão do texto.
 
@@ -53,6 +55,10 @@ Fotos removidas de um anúncio são excluídas do Cloudinary somente depois de c
 
 ## Reservas e pagamentos
 
+- O modo padrão é `request`: o cliente envia uma solicitação sem cobrança, o proprietário confirma ou recusa e o cliente acompanha o estado no painel. Os estados `requested`, `confirmed` e `declined` são separados dos estados do checkout.
+- O envio da solicitação não chama o Mercado Pago, não cria preferência de checkout e não exige `MP_ACCESS_TOKEN` nem `MP_WEBHOOK_SECRET`.
+- O proprietário só pode confirmar ou recusar solicitações dos próprios espaços; a API valida a titularidade e revalida conflitos de calendário.
+- O modo `payment` existe apenas para a fase futura de pagamentos; não habilitar agora.
 - O servidor calcula o preço usando o MySQL; o navegador apresenta apenas uma estimativa.
 - Uma diária cobre até 24 horas; fração adicional conta como nova diária. O pacote de fim de semana exige entrada na sexta ou no sábado e pelo menos 48 horas.
 - A criação usa transação e bloqueio da linha do espaço para impedir reservas simultâneas sobrepostas.
@@ -65,9 +71,13 @@ Fotos removidas de um anúncio são excluídas do Cloudinary somente depois de c
 
 ## Dados demonstrativos e privacidade
 
-O catálogo público não apresenta espaços `is_demo=1`. O schema de banco novo e a migração 002 não inserem espaços fictícios. A migração 007 pausa registros demonstrativos existentes sem apagá-los. Não execute exclusões de dados sem backup e conferência prévia.
+O catálogo público não apresenta espaços `is_demo=1` nem anúncios de proprietários não aprovados. O schema de banco novo e a migração 002 não inserem espaços fictícios. A migração 007 pausa registros demonstrativos existentes sem apagá-los. Não execute exclusões de dados sem backup e conferência prévia.
 
 O site usa uma ilustração abstrata no hero e um placeholder identificado quando um anúncio ainda não possui foto. Não usa fotografias de banco de imagens como se fossem fotos de espaços cadastrados. Dados de clientes e proprietários devem ser coletados apenas para as funções necessárias; a política e os termos gerais ainda precisam receber a identificação real da operadora, canais de contato, retenção de dados, regras de cancelamento e revisão jurídica.
+
+## Cloudflare e isolamento de dados
+
+O banco atual é MySQL 8.4 no Railway. Cloudflare RLS/Hyperdrive é voltado a PostgreSQL e não se aplica a esta arquitetura; não migrar o banco apenas para adotar esse recurso. Nenhuma zona/domínio está conectada à conta Cloudflare verificada, portanto WAF/proxy e regras de borda permanecem bloqueados até existir um domínio próprio e autorização para configurá-lo. O isolamento atual é aplicado no backend por `owner_id`, verificação de token Firebase e consultas autorizadas.
 
 ## Saúde da aplicação
 
