@@ -39,6 +39,10 @@ Referências oficiais:
 - https://docs.railway.com/pricing/plans
 - https://docs.railway.com/volumes/reference
 
+## 2.1. Resiliência para cold start
+
+A branch inclui uma tentativa limitada de reconexão PDO para erros transitórios de rede/servidor (SQLSTATE/driver codes 1042, 1053, 2002, 2003, 2005, 2006 e 2013, além de SQLSTATE 08001/08S01): até três tentativas, timeout de conexão de 5 segundos e pausas de 1 e 2 segundos. Erros de autenticação e SQL não são repetidos. Isso ajuda quando o Railway Free desperta após sleep, mas não substitui serviço MySQL ativo, configuração correta nem monitoramento.
+
 ## 3. Alteração segura preparada (ainda não aplicada)
 
 Foi preparada uma única alteração **staged**, sem deploy:
