@@ -140,6 +140,19 @@ $bookingCheck = $pdo->prepare("SELECT COUNT(DISTINCT space_id) FROM reservations
 $bookingCheck->execute($bookingIds);
 if ((int)$bookingCheck->fetchColumn() !== 2) failTest('Reservations in different spaces were not persisted independently.');
 
+[$customerChatStatus, $customerChat] = apiRequest($base, 'chat-access', 'isolated-http-test-token', 'POST', ['reservation_id' => $bookingIds[0]]);
+if ($customerChatStatus !== 200 || ($customerChat['authorized'] ?? false) !== true) {
+    failTest('The booking customer must access their own chat; got HTTP ' . $customerChatStatus);
+}
+[$ownerChatStatus, $ownerChat] = apiRequest($base, 'chat-access', $ownerA, 'POST', ['reservation_id' => $bookingIds[0]]);
+if ($ownerChatStatus !== 200 || ($ownerChat['authorized'] ?? false) !== true) {
+    failTest('The space owner must access the chat for a reservation on their space; got HTTP ' . $ownerChatStatus);
+}
+[$otherOwnerChatStatus] = apiRequest($base, 'chat-access', $ownerB, 'POST', ['reservation_id' => $bookingIds[0]]);
+if ($otherOwnerChatStatus !== 404) {
+    failTest('An unrelated owner must not access another reservation chat; got HTTP ' . $otherOwnerChatStatus);
+}
+
 $q = $pdo->prepare('SELECT COUNT(*) FROM spaces WHERE owner_id=? AND is_demo=0');
 $q->execute([$ownerAId]);
 $realCount = (int)$q->fetchColumn();
