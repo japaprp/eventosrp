@@ -2,27 +2,26 @@
 
 ## Estado atual verificado — 27/11/2026
 
-Esta seção prevalece sobre notas históricas abaixo quando houver divergência de status. O repositório é `japaprp/eventosrp`; o trabalho de entrega está isolado em `delivery/2026-11-27-production-readiness`, PR #19 em rascunho. A branch `main` permanece no commit `3c0168ce938be20059aa8eb512a28fb7c75ee829`.
+Esta seção prevalece sobre notas históricas abaixo quando houver divergência de status. O repositório é `japaprp/eventosrp`; o trabalho de entrega está isolado em `delivery/2026-11-27-production-readiness`, PR #19 aberto e em rascunho. Nenhuma alteração foi feita em `main`; o deployment Railway observado continua apontando para `main`, commit `c1431ba4327bb3f35419a3328ea2bcdb7d966a1c`.
 
 ### Código e testes
 - O pacote atual inclui cadastro de múltiplos espaços, aprovação administrativa de proprietários, fotos via upload assinado Cloudinary, solicitações de reserva sem cobrança por padrão, confirmação/recusa pelo proprietário, aceite das condições da reserva, ciclo de pagamentos desativado por configuração, reconciliação, endpoints health/readiness e retry PDO limitado.
-- Os testes de PHP, frontend, navegador, concorrência MySQL, concorrência HTTP e ciclo de pagamentos passaram no último commit de código testado.
+- No HEAD `717a549274e6e95edfab93943a4d3a930ca56ead`, Tests #160, Isolated HTTP #92, MySQL booking concurrency #84, MySQL payment lifecycle #82 e Reservas RP checks #98 concluíram PASS. O HTTP validou owner approval, isolamento e solicitações sem cobrança.
 - O workflow HTTP também validou `database/preflight_readonly.sql`, os endpoints `/health.php` e `/ready.php), isolamento de três espaços por proprietário e proteção contra configuração insegura de teste.
 - Os últimos commits de documentação não alteram código de produção.
 - Não há anúncio real cadastrado ou foto real do proprietário fornecida. O catálogo deve permanecer vazio até haver cadastro real e autorizado.
 
 ### Banco e infraestrutura
-- O MySQL original permanece cadastrado no Railway, com volume `mysql-volume` de 500 MB montado em `/var/lib/mysql`. Os deployments históricos estão removidos e não há deployment ativo.
-- Métrica de disco observada: cerca de 0,156 GB. Isso mostra armazenamento ocupado, não prova integridade lógica.
-- O proxy público aceita TCP, mas não envia greeting MySQL. O Render continua registrando HTTP 503 e `SQLSTATE[HY000] [2006] MySQL server has gone away`.
-- O comando atual do MySQL usa buffer pool de 1 GiB, acima do limite de 0,5 GB de RAM por serviço do plano Railway Free. Foi preparado patch staged para 128 MiB e 20 conexões; não foi aplicado e nenhum deploy foi iniciado.
-- Antes de aplicar o patch, confirmar no painel o plano ativo e o crédito disponível. Não fazer upgrade nem gerar cobrança.
+- O serviço MySQL Railway permanece no projeto `zealous-creativity`, com volume original `mysql-volume` de 500 MB montado em `/var/lib/mysql`. O deployment foi observado em `SLEEPING` com Serverless; o log histórico confirma MySQL 8.4.13 e `ready for connections`, mas não autenticação atual.
+- O start command já foi ajustado para buffer pool 128 MiB e máximo de 20 conexões. Não houve alteração de volume.
+- O proxy TCP `switchyard.proxy.rlwy.net:48927` está ativo e encaminha para 3306; handshake autenticado e `SELECT 1` seguem BLOCKED/NOT RUN.
+- Backup lógico, SHA-256 e restauração isolada ainda não foram realizados. Não executar migrations sem backup restaurável e autorização.
 - Aiven não pôde ser inventariado porque o conector retornou erro interno.
 - Cloudinary está no plano Free, com 0,17/25 créditos usados e 64 assets de amostra; a busca por prefixo `eventosrp` retornou zero. Nenhuma imagem de amostra foi reutilizada.
-- Cloudflare R2 ainda não está habilitado na conta. Nenhum bucket foi criado.
+- Cloudflare não tem zona/domínio cadastrado na conta consultada. Nenhum bucket R2 foi criado. WAF/proxy de borda permanece indisponível até existir domínio próprio; RLS/Hyperdrive não se aplica ao MySQL atual.
 
 ### Pendências comerciais e legais
-- As variáveis privadas do Cloudinary, Firebase e Mercado Pago precisam de homologação nos ambientes reais.
+- As variáveis privadas do Cloudinary e Firebase precisam de homologação nos ambientes reais. Pagamentos permanecem desativados por padrão em `RESERVATIONS_PAYMENT_MODE=request` e só devem ser habilitados na última etapa.
 - O checkbox de termos no cadastro de conta é validado no navegador, mas seu aceite não é persistido pelo backend; login Google também não registra esse aceite.
 - Os textos de termos e privacidade exibidos atualmente são resumos provisórios, não documentos legais completos. Faltam dados da operadora, canal do titular, retenção, bases legais, transferências internacionais, cancelamentos e fluxo de exclusão.
 - Não há split ou repasse automático. Reembolsos, chargebacks e contingências exigem processo operacional definido.
@@ -34,7 +33,7 @@ Esta seção prevalece sobre notas históricas abaixo quando houver divergência
 3. Fazer backup lógico, SHA-256 e restauração em banco descartável; executar `database/preflight_readonly.sql`.
 4. Inspecionar schema real e comparar com migrations 002–009; aplicar somente as ausentes, depois do backup restaurável e autorização.
 5. Corrigir/confirmar host e porta pública do Railway no Render; validar `SELECT 1` e catálogo.
-6. Configurar `PLATFORM_ADMIN_FIREBASE_UID`, homologar Firebase e Cloudinary sem expor segredos; manter Mercado Pago para a última etapa.
+6. Configurar `PLATFORM_ADMIN_FIREBASE_UID` no ambiente privado, homologar Firebase Emulator/projeto correto e Cloudinary sem expor segredos; manter Mercado Pago para a última etapa.
 7. Completar dados da operadora e textos legais, persistir aceite da conta e cadastrar pelo menos um espaço real com fotos autorizadas.
 8. Só então revisar release, merge e deploy mediante autorização específica.
 
