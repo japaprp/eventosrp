@@ -43,7 +43,7 @@ if (isset($snapshot['reservation']['contact_name']) || isset($snapshot['reservat
 $spaceWithoutRules = $space;
 $spaceWithoutRules['rules'] = '';
 $fallback = json_decode(reservationAgreementSnapshot($spaceWithoutRules, $quote, $reservation, RESERVATION_TERMS_VERSION), true, 512, JSON_THROW_ON_ERROR);
-if ($fallback['space']['rules_and_cancellation'] !== 'O proprietário ainda não cadastrou regras específicas; confirme-as diretamente antes de pagar.') {
+if ($fallback['space']['rules_and_cancellation'] !== 'O proprietário ainda não cadastrou regras específicas; confirme-as diretamente antes da confirmação da locação.') {
     throw new RuntimeException('Snapshot não preservou o aviso quando o espaço não tem regras cadastradas.');
 }
 echo count($cases) . ' testes de período/preço, ' . count($overlaps) . ' testes de sobreposição e 1 teste de snapshot do aceite passaram.' . PHP_EOL;
