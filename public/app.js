@@ -3,10 +3,11 @@ let spaces = [];
 let catalogueStatus = 'loading', catalogueRequest = 0;
 const $ = s => document.querySelector(s), money = n => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:0,maximumFractionDigits:2}).format(n);
 const escapeHtml = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const photo = (s,w=800) => {
+const photo = s => {
   const candidate=s.photos?.[0];
   if(candidate){try{const url=new URL(candidate);if(url.protocol==='https:')return url.href}catch{}}
-  return `https://images.unsplash.com/${s.photo||'photo-1519167758481-83f550bb49b3'}?w=${w}&auto=format&fit=crop&q=85`;
+  const placeholder='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500"><rect width="800" height="500" fill="#e9edf1"/><path d="M0 390L220 210l150 120 120-150 310 210v110H0z" fill="#d5dde5"/><circle cx="400" cy="180" r="42" fill="#b6c3cf"/><text x="400" y="445" text-anchor="middle" font-family="Arial,sans-serif" font-size="28" fill="#526273">Foto ainda não enviada</text></svg>';
+  return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(placeholder);
 };
 let profile={name:'',phone:''};
 let type='', user=null, auth=null, db=null, sdk=null, unsubscribeChat=null, config={}, firebaseStatus='loading', firebaseFailureDetail='';
@@ -224,7 +225,7 @@ async function chat(id){
     catch{error.textContent='Não foi possível enviar. Tente novamente.'}finally{button.disabled=false}
   };
 }
-const legal={terms:['Termos de uso','Esta plataforma apresenta espaços e permite solicitar locações. O usuário deve fornecer informações corretas, respeitar a capacidade e as regras do local, e aceitar os termos de serviço. Pagamentos são processados via Mercado Pago. Cancelamentos devem ser feitos conforme as regras do host.'],privacy:['Política de privacidade','Seus dados de perfil, reservas e comunicações são armazenados para gerenciar sua conta e reservas. Não compartilhamos dados com terceiros, exceto para pagamento (Mercado Pago) e autenticação (Firebase). Você pode solicitar exclusão a qualquer momento.']};
+const legal={terms:['Termos de uso — aviso provisório','O Reservas RP está em preparação. No modo atual, uma solicitação de reserva não confirma a locação e não gera cobrança; o proprietário precisa responder e confirmar a disponibilidade. Confira diretamente com o responsável as regras e condições do espaço antes de qualquer acordo. Este aviso é provisório e não substitui os termos completos, que precisam ser publicados antes da abertura comercial.'],privacy:['Privacidade — aviso provisório','Este aviso ainda não é a política de privacidade definitiva. A arquitetura do produto prevê Firebase para autenticação e chat, MySQL hospedado no Railway para dados operacionais e Cloudinary para imagens dos espaços quando o recurso estiver configurado. Antes da abertura comercial, serão publicados a identificação e o contato do responsável pelo tratamento, as finalidades e bases legais, os dados tratados, os compartilhamentos e transferências, os prazos de retenção e o canal para exercício dos direitos previstos na LGPD. Não envie dados pessoais enquanto essas informações não estiverem completas.']};
 $('#list-space').onclick=()=>spaceManager();
 $('#login-button').onclick=()=>user?account('reservas'):login();
 document.querySelectorAll('[data-legal]').forEach(b=>b.onclick=()=>{const [title,text]=legal[b.dataset.legal]||['Segurança','Sua conta é autenticada pelo Firebase. O pagamento ocorre no Mercado Pago. Nunca informe senhas ou dados de cartão no chat da reserva.'];modal(`<h2>${title}</h2><p>${text}</p>`)});document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{const page=b.dataset.page;if(page==='painel'||page==='spaces')spaceManager();else if(page==='reservas'||page==='account')account('reservas');else if(page==='login')login()});
@@ -258,7 +259,7 @@ async function refreshCatalogue() {
     }));
     const location = $('#location');
     const selected = location.value;
-    const cities = [...new Set(['Ribeirão Preto', ...spaces.map(space => space.city)])]
+    const cities = [...new Set(spaces.map(space => space.city).filter(city => typeof city === 'string' && city.trim() !== ''))]
       .sort((a, b) => a.localeCompare(b, 'pt-BR'));
     location.innerHTML = '<option value="">Todas as localizações</option>'
       + cities.map(city => `<option value="${escapeHtml(city)}">${escapeHtml(city)}</option>`).join('');
