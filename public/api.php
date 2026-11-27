@@ -142,6 +142,7 @@ try {
  $action=$_GET['action']??'';$method=$_SERVER['REQUEST_METHOD'];
  if($action==='spaces'&&$method==='GET'){$rows=database()->query("SELECT * FROM spaces WHERE active=1 AND is_demo=0 AND (owner_id IS NULL OR owner_id IN (SELECT id FROM users WHERE owner_status='approved')) ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);respond(array_map('publicSpace',$rows));}
  if($action==='webhook') {
+  if(env('RESERVATIONS_PAYMENT_MODE','request')!=='payment')respond(['error'=>'Pagamentos estão desativados.'],503);
   if(!requestIsSecure())respond(['error'=>'HTTPS obrigatório.'],400);
   if($method!=='POST')respond(['error'=>'Método não permitido.'],405);
   $id=webhookPaymentId($_SERVER['QUERY_STRING']??'',$_SERVER['HTTP_X_SIGNATURE']??'',$_SERVER['HTTP_X_REQUEST_ID']??'',env('MP_WEBHOOK_SECRET'));
