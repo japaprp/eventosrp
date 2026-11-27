@@ -1,5 +1,12 @@
 # Pendências para abertura comercial — Reservas RP
 
+## Estado público atual — 27/11/2026
+
+A versão publicada contém apenas avisos provisórios de Termos de Uso e Privacidade. Eles informam que a plataforma está em preparação e não substituem os documentos completos. A correção visual foi publicada no commit `ede73868a5518e90400e52ba850da3a94d7a197f`; o deployment Railway `f6339668-91a3-4549-8b5e-537fa914a050` concluiu SUCCESS.
+
+**Abertura comercial continua BLOCKED** até que o responsável forneça seus dados reais, canais de contato, definição contratual da operação, bases legais, retenção, compartilhamentos/transferências e políticas de cancelamento/reembolso; depois, os textos precisam ser revisados e o aceite de conta persistido no backend. Não inventar esses dados nem apresentar os avisos provisórios como conformidade LGPD.
+
+
 Este documento é uma lista operacional. Não substitui parecer jurídico nem confirma conformidade legal.
 
 ## Dados da operadora
