@@ -65,6 +65,20 @@ jobs:
       - name: Create isolated database schema
         run: |
           sed '1,2d' database/schema.sql | mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -proot eventosrp_http_test
+      - name: Validate migration 010 on a separate disposable schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -proot -e "CREATE DATABASE eventosrp_migration_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE TABLE eventosrp_migration_test.users (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, firebase_uid VARCHAR(128) NOT NULL UNIQUE, email VARCHAR(254) NOT NULL) ENGINE=InnoDB;"
+          mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -proot eventosrp_migration_test < database/migrations/010_account_consents.sql
+          mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -proot eventosrp_migration_test -e "INSERT INTO users (firebase_uid,email) VALUES ('consent-migration-test','test@example.invalid'); INSERT INTO account_consents (user_id,terms_version,privacy_version) VALUES (1,'terms-v1','privacy-v1'); INSERT IGNORE INTO account_consents (user_id,terms_version,privacy_version) VALUES (1,'terms-v1','privacy-v1');"
+          rows=$(mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -proot eventosrp_migration_test -Nse "SELECT COUNT(*) FROM account_consents")
+          if [ "$rows" != "1" ]; then echo "Migration unique key/idempotent insert check failed: rows=$rows" >&2; exit 1; fi
+          if mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -proot eventosrp_migration_test -e "INSERT INTO account_consents (user_id,terms_version,privacy_version) VALUES (999,'terms-v2','privacy-v2')" 2>/dev/null; then
+            echo "Migration foreign key accepted an unknown user." >&2
+            exit 1
+          fi
+          echo "PASS: migration 010 creates the audit table, enforces user FK and unique user/version pairs."
       - name: Insert one explicit disposable listing fixture
         run: |
           mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -proot eventosrp_http_test -e "INSERT INTO spaces (name,city,type,capacity,daily_price,check_in_time,check_out_time,minimum_days,cleanup_minutes,active,is_demo) VALUES ('Fixture HTTP isolada','Ribeirão Preto','Salão',20,100.00,'09:00:00','09:00:00',1,0,1,0)"
