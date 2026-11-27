@@ -272,17 +272,45 @@ async function refreshCatalogue() {
   render();
 }
 $('#retry-catalogue').onclick = refreshCatalogue;
+async function ownerApprovalPanel(){
+  if(!user)return;
+  modal('<h2>Solicitações de proprietários.</h2><p>Somente contas autorizadas pela administração podem publicar espaços.</p><div id="owner-approval-list" role="status">Carregando solicitações...</div>');
+  const box=$('#owner-approval-list');
+  try{
+    const rows=await api('owner-requests');
+    if($('#owner-approval-list')!==box)return;
+    box.textContent=rows.length?'':'Nenhuma solicitação pendente.';
+    for(const owner of rows){
+      const item=document.createElement('div');item.className='reservation-item';
+      const detail=document.createElement('p');detail.textContent=`${owner.name||'Sem nome'} · ${owner.email} · ${owner.spaces_count} espaço(s)`;item.appendChild(detail);
+      const actions=document.createElement('div');actions.className='panel-actions';
+      for(const decision of ['approved','rejected']){
+        const button=document.createElement('button');button.className=decision==='approved'?'primary':'login';button.textContent=decision==='approved'?'Aprovar proprietário':'Recusar';
+        button.onclick=async()=>{button.disabled=true;try{await api('review-owner',{method:'POST',body:JSON.stringify({firebase_uid:owner.firebase_uid,decision})});toast(decision==='approved'?'Proprietário aprovado.':'Solicitação recusada.');ownerApprovalPanel()}catch(error){button.disabled=false;toast(error.message)}};
+        actions.appendChild(button);
+      }
+      item.appendChild(actions);box.appendChild(item);
+    }
+  }catch(error){if($('#owner-approval-list')===box)box.textContent=error.message}
+}
 async function spaceManager(){
   if(!user){login(()=>spaceManager());return}
-  modal('<h2>Meus espaços.</h2><div class="panel-actions"><button class="primary" id="new-space">Cadastrar espaço ↗</button><button class="login" id="back-account">Minhas reservas</button></div><div id="owned-spaces">Carregando...</div><h3 style="margin-top:30px">Reservas recebidas</h3><div id="host-reservations">Carregando...</div>');
+  modal('<h2>Meus espaços.</h2><p id="owner-approval-status" class="notice">Verificando situação do cadastro...</p><div class="panel-actions"><button class="primary" id="new-space">Cadastrar espaço ↗</button><button class="login" id="back-account">Minhas reservas</button><button class="login" id="admin-owner-review" hidden>Solicitações de proprietários</button></div><div id="owned-spaces">Carregando...</div><h3 style="margin-top:30px">Reservas recebidas</h3><div id="host-reservations">Carregando...</div>');
   $('#new-space').onclick=()=>spaceForm();$('#back-account').onclick=()=>account('reservas');
-  const results=await Promise.allSettled([api('my-spaces'),api('host-reservations')]);
+  const results=await Promise.allSettled([api('my-spaces'),api('host-reservations'),api('profile')]);
   if(!$('#owned-spaces')||!$('#host-reservations'))return;
-  const [owned,received]=results;
+  const [owned,received,accountProfile]=results;
+  if(accountProfile.status==='fulfilled'){
+    profile={...profile,...accountProfile.value};
+    const status=accountProfile.value.owner_status;
+    $('#owner-approval-status').textContent=status==='approved'?'Cadastro aprovado. Você pode ativar ou pausar cada anúncio.':status==='pending'?'Sua solicitação de proprietário está em análise. Os anúncios permanecem ocultos até a aprovação.':status==='rejected'?'Sua solicitação anterior foi recusada. Atualize os dados do espaço para solicitar uma nova análise.':'Cadastre seu espaço para solicitar autorização de publicação.';
+    $('#admin-owner-review').hidden=!accountProfile.value.is_platform_admin;
+    $('#admin-owner-review').onclick=ownerApprovalPanel;
+  }else $('#owner-approval-status').textContent='Não foi possível verificar a situação da aprovação.';
   if(owned.status==='rejected')$('#owned-spaces').textContent=owned.reason.message;
   else{
     const box=$('#owned-spaces');box.textContent=owned.value.length?'':'Você ainda não cadastrou espaços.';
-    for(const s of owned.value){const item=document.createElement('div');item.className='reservation-item';const text=document.createElement('p');text.textContent=`${s.name} · ${s.city} · ${s.address}`;item.appendChild(text);const button=document.createElement('button');button.className='detail-button';button.textContent='Editar';button.onclick=()=>spaceForm(s);item.appendChild(button);box.appendChild(item)}
+    for(const s of owned.value){const item=document.createElement('div');item.className='reservation-item';const text=document.createElement('p');text.textContent=`${s.name} · ${s.city} · ${s.address} · ${s.active?'Publicado':'Pausado'}`;item.appendChild(text);const button=document.createElement('button');button.className='detail-button';button.textContent='Editar';button.onclick=()=>spaceForm(s);item.appendChild(button);box.appendChild(item)}
   }
   if(received.status==='rejected')$('#host-reservations').textContent=received.reason.message;
   else{
