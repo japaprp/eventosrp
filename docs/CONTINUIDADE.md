@@ -1,5 +1,18 @@
 # Continuidade da plataforma Encontro
 
+## Atualização prioritária — 27/11/2026, 20:38 UTC
+
+Esta atualização prevalece sobre notas históricas abaixo.
+
+- PR #20 foi integrado no commit `ede73868a5518e90400e52ba850da3a94d7a197f` e publicado no Railway no deployment `f6339668-91a3-4549-8b5e-537fa914a050` (**SUCCESS**). Serviço PHP online, uma réplica, sem falhas recentes.
+- O site público não usa mais fotos Unsplash ou avatares de demonstração. O hero é uma ilustração abstrata, as fotos ausentes são identificadas, e as localidades vêm apenas dos anúncios publicados.
+- PR #19 foi sincronizado com main pelo merge commit `105ea58c53ff96fcd2183f0307ae993903c2f003`; permanece draft, aberto e mergeable=true. Os cinco workflows no novo HEAD passaram: Tests #165, HTTP #97, MySQL booking #89, MySQL payment lifecycle #87 e Reservas RP checks #105.
+- MySQL está `SLEEPING`, volume original de 500 MB preservado. As ferramentas de banco não estão habilitadas; handshake, consulta, inventário, backup lógico e restore continuam BLOCKED/NOT RUN. Não foi executada migration nem exclusão.
+- O usuário informou que não há clientes; isso não pôde ser verificado no banco nesta sessão. Não presumir que o volume esteja vazio.
+- Smoke test HTTP público pós-deploy: NOT RUN/BLOCKED pelo acesso DNS do ambiente de verificação. Deploy SUCCESS não prova reserva real.
+- Não ativar pagamentos nem abrir comercialmente antes de homologar banco, Firebase, Cloudinary, cadastro/aceite, termos finais e operação de atendimento.
+
+
 ## Estado atual verificado — 27/11/2026
 
 Esta seção prevalece sobre notas históricas abaixo quando houver divergência de status. O repositório é `japaprp/eventosrp`; o trabalho de entrega está isolado em `delivery/2026-11-27-production-readiness`, PR #19 aberto e em rascunho. Nenhuma alteração foi feita em `main`; o deployment Railway observado continua apontando para `main`, commit `c1431ba4327bb3f35419a3328ea2bcdb7d966a1c`.
