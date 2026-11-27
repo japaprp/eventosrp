@@ -4,7 +4,7 @@
 **Data:** 27/11/2026  
 **Escopo:** cadastro, autenticação, consentimento de Termos de Uso e Política de Privacidade no Reservas RP.
 
-## 1. Estado observado no código
+## 1. Estado inicial observado no código (antes da implementação)
 
 A inspeção foi feita na branch `delivery/2026-11-27-production-readiness`, HEAD `5d23b547aab28e9e77fb14161558e07455921ae3`.
 
@@ -32,9 +32,9 @@ A primeira implementação foi adicionada à branch `delivery/2026-11-27-product
 
 **Limite de validação:** os arquivos e testes foram adicionados, mas a execução de CI desta revisão ainda precisa terminar. A migration está preparada, não aplicada em nenhum banco.
 
-## 4. Arquitetura e contrato
+## 4. Contrato e decisões técnicas
 
-### 3.1 Fonte de verdade no servidor
+### 4.1 Fonte de verdade no servidor
 
 Configuração privada, definida somente após a aprovação/publicação dos documentos:
 
@@ -45,11 +45,9 @@ Configuração privada, definida somente após a aprovação/publicação dos do
 
 Se qualquer valor estiver ausente, inválido ou não HTTPS, a API deve responder em modo fechado: não aceitar consentimento e não liberar ações autenticadas que criem/alterem dados ou iniciem uma reserva. A resposta deve informar indisponibilidade de cadastro por configuração documental pendente, sem expor valores internos.
 
-### 3.2 Persistência auditável
+### 4.2 Persistência auditável
 
-Criar migration aditiva `010_account_consents.sql` e refletir a estrutura em `database/schema.sql`.
-
-Tabela proposta `account_consents`:
+A migration aditiva `010_account_consents.sql` e o schema `database/schema.sql` já incluem a tabela `account_consents`:
 - `id`: chave primária;
 - `user_id`: FK para `users.id`;
 - `terms_version` e `privacy_version`: versões aceitas, recebidas e comparadas com a configuração do servidor;
@@ -59,7 +57,7 @@ Tabela proposta `account_consents`:
 
 Não registrar IP, localização ou outros dados de rastreamento sem necessidade demonstrada. O histórico deve ser append-only para a aplicação: nova versão gera novo registro, sem sobrescrever aceite anterior.
 
-### 3.3 Contrato da API
+### 4.3 Contrato da API
 
 - `GET account-consent-requirements`: exige token Firebase; retorna versões e URLs HTTPS vigentes somente quando a configuração estiver completa.
 - `POST account-consent`: exige token Firebase, confirmação booleana explícita e versões exatas devolvidas pelo servidor. O servidor registra `accepted_at`; não aceita timestamp enviado pelo cliente.
@@ -68,7 +66,7 @@ Não registrar IP, localização ou outros dados de rastreamento sem necessidade
 - Repetir o mesmo aceite deve ser idempotente. Versão antiga, ausente, adulterada ou checkbox falso deve ser recusado.
 - O aceite dos termos específicos de uma reserva permanece separado e não substitui o consentimento de conta.
 
-### 3.4 Fluxos de autenticação
+### 4.4 Fluxos de autenticação
 
 - E-mail/senha: validar os documentos e o aceite antes de liberar o uso das rotas de negócio.
 - Google: distinguir conta nova de conta existente e executar o mesmo fluxo de consentimento quando não houver registro vigente.
@@ -77,7 +75,7 @@ Não registrar IP, localização ou outros dados de rastreamento sem necessidade
 
 **Limite conhecido:** Firebase Authentication Blocking Functions podem impedir a criação antes de o usuário ser salvo, mas a documentação oficial exige upgrade para Firebase Authentication with Identity Platform. A função `beforeUserCreated` também afeta os fluxos de criação de usuários do projeto Firebase. Portanto, não ativar nem solicitar upgrade sem avaliação de custo, impacto em todos os provedores e autorização explícita. A barreira de negócio no backend continua obrigatória mesmo se esse recurso vier a ser adotado.
 
-## 5. Testes obrigatórios
+## 5. Testes e critérios de aceite
 
 1. Sem versões/URLs documentais configuradas: API falha fechada e não libera rotas de negócio.
 2. URL HTTP, vazia ou inválida: configuração recusada.
@@ -97,9 +95,9 @@ Não registrar IP, localização ou outros dados de rastreamento sem necessidade
 1. Confirmar operador legal, contato, conteúdo final dos documentos, bases legais, finalidades, dados, compartilhamentos/transferências, retenção, direitos, cancelamento e reembolso.
 2. Revisar e aprovar os documentos; publicar URLs HTTPS e fixar versões imutáveis.
 3. Recuperar acesso autorizado ao MySQL de produção, executar preflight somente leitura, obter backup lógico e comprovar restauração isolada.
-4. Implementar migration 010, endpoints, bloqueio centralizado de rotas e os fluxos de e-mail/Google na branch de homologação.
-5. Testar migration e API em banco descartável, incluindo regressões e concorrência.
-6. Configurar versões/URLs somente após os documentos estarem efetivamente publicados.
+4. Implementação inicial concluída na branch de homologação; concluir a validação automatizada e a revisão do fluxo de UI antes de considerar a etapa técnica homologada.
+5. Validar migration, endpoints e bloqueio em banco descartável, incluindo regressões e concorrência; os testes estão em execução no CI desta revisão.
+6. Configurar versões/URLs somente após os documentos estarem efetivamente publicados e aprovados.
 7. Fazer homologação completa; produção somente após backup restaurável, preflight e autorização de release.
 
 ## 7. Restrições atuais
