@@ -46,7 +46,7 @@ try{
   await page.locator('#list-space').click();await page.locator('#new-space').click();
   assert.equal(await page.locator('#space-photos').getAttribute('type'),'file');checks++;
   await page.locator('#space-name').fill('Chácara de teste');await page.locator('#space-city').fill('Ribeirão Preto');await page.locator('#space-address').fill('Rua de teste, 1');await page.locator('#space-type').selectOption({label:'Salão'});await page.locator('#space-capacity').fill('150');await page.locator('#space-description').fill('Espaço para eventos de teste');await page.locator('#space-price').fill('1800.50');await page.locator('#space-in').fill('09:00');await page.locator('#space-out').fill('09:00');await page.locator('[data-space-event]').first().check();
-  await page.locator('#space-photos').setInputFiles({name:'space.jpg',mimeType:'image/jpeg',buffer:imageBuffer});await page.locator('#space-photo-status').filter({hasText:'1 foto(s) adicionada(s)'}).waitFor();
+  await page.locator('#space-photos').setInputFiles({name:'space.jpg',mimeType:'image/jpeg',buffer:imageBuffer});await page.locator('#photo-upload-status').filter({hasText:'1 foto(s) adicionada(s)'}).waitFor();
   assert.equal(await page.locator('#space-photo-preview img').getAttribute('src'),uploadUrl);checks++;
   await page.locator('#space-owner-authorized').check();await page.locator('#save-space').click();
   await page.locator('#new-space').waitFor();
