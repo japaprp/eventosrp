@@ -52,7 +52,15 @@ element('#check-out').value='2030-01-07T09:00';element('#check-out').oninput();a
 element('#check-out').value='2030-01-05T18:00';element('#check-out').oninput();assert.equal(element('#check-out').value,'2030-01-05T09:00');assert.match(element('#quote').textContent,/pelo menos 48 horas/);
 assert.ok(fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8').includes('<option>Ribeirão Preto</option>'));assert.ok(!fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8').includes('images.unsplash.com'));assert.ok(!fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8').includes('images.unsplash.com'));assert.ok(source.includes('upload-space-photo'));assert.ok(source.includes('delete-space-photo'));assert.ok(source.includes('accept-reservation-terms'));
 assert.ok(!source.includes('onrender.com'),'Firebase errors must not direct users to the retired Render domain');
-assert.ok(source.includes('eventosrp-production.up.railway.app'),'Firebase errors must identify the current Railway domain');assert.ok(source.includes('terms_accepted:'));
+assert.ok(source.includes('eventosrp-production.up.railway.app'),'Firebase errors must identify the current Railway domain');
+const firebaseRules = JSON.parse(fs.readFileSync(new URL('../database.rules.json', import.meta.url), 'utf8'));
+const chatRules = firebaseRules.rules.chats.$reservationId.messages;
+assert.ok(chatRules['.read'].includes('members'),'Chat reads must require reservation membership');
+assert.ok(chatRules.$messageId['.write'].includes('!data.exists()'),'Chat messages must be append-only');
+assert.ok(chatRules.$messageId['.write'].includes('auth.uid'),'Chat writes must require an authenticated member');
+assert.ok(chatRules.$messageId['.validate'].includes('sender'),'Chat messages must validate the authenticated sender');
+assert.ok(chatRules.$messageId['.validate'].includes('1000'),'Chat messages must enforce the 1000-character limit');
+assert.ok(source.includes('terms_accepted:'));
 vm.runInContext('passwordReset("cliente@example.com")',context);assert.equal(element('#reset-email').value,'cliente@example.com');assert.match(element('#modal-content').innerHTML,/Enviar link/);assert.ok(!element('#modal-content').innerHTML.includes('type="password"'));
 let resetEmail=null;context.recordReset=email=>{resetEmail=email};vm.runInContext('auth={};sdk={sendPasswordResetEmail:async(a,email)=>recordReset(email)}',context);await element('#reset-form').onsubmit({preventDefault(){}});assert.equal(resetEmail,'cliente@example.com');
 vm.runInContext("user={uid:'titular'};spaceForm()",context);assert.equal(element('#space-city').value,'');assert.equal(element('#space-in').value,'');assert.equal(element('#space-out').value,'');assert.equal(element('#space-active').checked,false);assert.equal(element('#space-type').value,'');assert.equal(element('#space-capacity').value,'');assert.equal(element('#space-price').value,'');assert.match(element('#modal-content').innerHTML,/Preparação entre reservas/);assert.match(element('#modal-content').innerHTML,/data-space-amenity/);assert.match(element('#modal-content').innerHTML,/type=\"file\"/);assert.match(element('#modal-content').innerHTML,/space-owner-authorized/);
