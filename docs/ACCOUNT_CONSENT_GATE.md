@@ -30,7 +30,7 @@ A primeira implementação foi adicionada à branch `delivery/2026-11-27-product
 - `public/app.js` solicita confirmação dos documentos vigentes tanto no login por e-mail/senha quanto no Google; o antigo checkbox que apontava para avisos provisórios foi removido.
 - O adaptador HTTP isolado usa versões e URLs sintéticas `.invalid` somente quando `eventosrpHttpTestMode()` confirma o banco descartável e os demais marcadores de teste.
 
-**Limite de validação:** os arquivos e testes foram adicionados, mas a execução de CI desta revisão ainda precisa terminar. A migration está preparada, não aplicada em nenhum banco.
+**Validação automatizada:** seis workflows no HEAD `77da025b0e1bcb2fa66548e7152ac54e8b5bd54e` concluíram PASS: PHP + frontend, regressão geral, HTTP isolado, MySQL booking concurrency, MySQL payment lifecycle e Firebase rules. Os testes HTTP exercitam bloqueio sem aceite, aceite falso, versão antiga, timestamp do servidor e idempotência. A migration está preparada, não aplicada em nenhum banco.
 
 ## 4. Contrato e decisões técnicas
 
