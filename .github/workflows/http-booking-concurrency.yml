@@ -48,6 +48,7 @@ jobs:
       HTTP_TEST_BASE_URL: http://127.0.0.1:8088
       APP_URL: https://eventosrp-test.invalid
       PLATFORM_ADMIN_FIREBASE_UID: eventosrp-http-test-admin
+      RESERVATIONS_PAYMENT_MODE: request
       MP_ACCESS_TOKEN: isolated-test-token
       MP_WEBHOOK_SECRET: isolated-test-webhook-secret
     steps:
