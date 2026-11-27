@@ -68,7 +68,7 @@ A redução para 128 MiB é uma configuração conservadora para o limite de 512
    - calcular SHA-256;
    - enviar cópia para o backup privado do projeto;
    - confirmar tamanho, hash e restauração em MySQL descartável.
-5. Comparar schema, tabelas e contagens de registros na restauração.
+5. Executar primeiro `database/preflight_readonly.sql` (somente leitura) e comparar schema, tabelas, índices, chaves estrangeiras e contagens de registros na restauração.
 6. Somente após backup restaurável, validar migrações 002–007 em banco descartável e depois planejar a aplicação controlada no banco real.
 7. Configurar o Render para usar o endpoint público do proxy Railway, pois o Render não está dentro da rede privada Railway. Host e porta públicos atuais: `switchyard.proxy.rlwy.net:48927`. Não copiar senha para logs, issues ou chat.
 8. Validar `SELECT 1`, catálogo, cadastro, upload, reserva e pagamento em sandbox.
