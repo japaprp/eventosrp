@@ -23,7 +23,9 @@ jobs:
           extensions: curl, mbstring, pdo_mysql
           coverage: none
       - name: Lint API and payment lifecycle
-        run: php -l public/api.php && php -l src/bootstrap.php && php -l src/database_retry.php && php -l src/payment_lifecycle.php && php -l src/cloudinary.php && php -l src/spaces.php && php -l src/booking.php && php -l public/health.php && php -l public/ready.php
+        run: php -l public/api.php && php -l src/bootstrap.php && php -l src/account_consent.php && php -l src/database_retry.php && php -l src/payment_lifecycle.php && php -l src/cloudinary.php && php -l src/spaces.php && php -l src/booking.php && php -l public/health.php && php -l public/ready.php
+      - name: Test account consent configuration
+        run: php tests/account_consent.php
       - name: Test booking rules
         run: php tests/booking.php
       - name: Test space validation
