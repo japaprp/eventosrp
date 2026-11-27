@@ -40,7 +40,7 @@ function bookingOverlaps(string $startA, string $endA, string $startB, string $e
 }
 
 const RESERVATION_TERMS_VERSION = 'reserva-v1-2026-11-27';
-const RESERVATION_PLATFORM_TERMS = 'A plataforma facilita a solicitação de locação entre clientes e proprietários. O cliente deve conferir os dados, horários, capacidade e regras do espaço. O pagamento é processado pelo Mercado Pago. As condições específicas de cancelamento devem estar descritas pelo proprietário e ser confirmadas antes do pagamento.';
+const RESERVATION_PLATFORM_TERMS = 'A plataforma facilita solicitações de locação entre clientes e proprietários. O cliente deve conferir os dados, horários, capacidade e regras do espaço. O envio da solicitação não gera cobrança e não confirma a locação; o proprietário deve confirmar a solicitação. Se houver pagamento em etapa futura, as condições serão apresentadas antes de qualquer cobrança.';
 
 function reservationAgreementSnapshot(array $space, array $quote, array $reservation, string $version): string {
     return json_encode([
@@ -53,7 +53,7 @@ function reservationAgreementSnapshot(array $space, array $quote, array $reserva
             'city' => (string) $space['city'],
             'rules_and_cancellation' => trim((string) ($space['rules'] ?? '')) !== ''
                 ? (string) $space['rules']
-                : 'O proprietário ainda não cadastrou regras específicas; confirme-as diretamente antes de pagar.',
+                : 'O proprietário ainda não cadastrou regras específicas; confirme-as diretamente antes da confirmação da locação.',
             'capacity' => (int) ($space['capacity'] ?? 0),
             'daily_price' => (string) ($space['daily_price'] ?? ''),
             'weekend_price' => $space['weekend_price'] ?? null,
