@@ -10,7 +10,7 @@ A prioridade é recuperar o banco original e preservar os registros reais. Não 
 
 | Provedor | Situação | Compatibilidade | Decisão |
 |---|---|---|---|
-| Railway MySQL existente | Serviço removido; volume ainda listado; proxy TCP sem handshake MySQL | MySQL nativo se o volume puder ser reanexado | Primeira opção de recuperação, sem recriar serviço até confirmar custo e persistência |
+| Railway MySQL original | Serviço e volume ainda existem; deployments históricos removidos; serviço offline; TCP aceita conexão mas não envia greeting MySQL | MySQL nativo; volume de 500 MB ainda montado em /var/lib/mysql | Recuperar o serviço existente e exportar os dados antes de qualquer migração; não criar outro serviço/volume |
 | Aiven MySQL Free | Inventário da conta não pôde ser confirmado; encerramento do plano Free anunciado para 21/12/2026 | MySQL nativo | Se for o banco atual, exportar antes do encerramento; não usar como destino permanente gratuito |
 | TiDB Cloud Starter | Plano gratuito disponível, sujeito a quotas | Protocolo MySQL e grande parte da sintaxe MySQL 8 | Melhor candidato gratuito para migração controlada, ainda não homologado pelo Reservas RP |
 | PlanetScale | Não oferece plano gratuito | MySQL-compatible/Vitess, pago | Descartado para a exigência de custo zero |
@@ -57,8 +57,8 @@ O Cloudinary é o caminho de menor mudança porque a integração assinada já f
 
 ## Plano recomendado
 
-1. Confirmar se o MySQL original está no volume Railway ou no Aiven. Preservar o volume e não criar outro serviço por tentativa.
-2. Exportar backup consistente do banco original e testar restauração isolada.
+1. MySQL original localizado no Railway: serviço MySQL e volume mysql-volume (500 MB) permanecem no projeto; deployments estão removidos e serviço offline. Preservar o volume e não criar outro serviço.
+2. Confirmar plano/limite de uso gratuito antes de iniciar o serviço. O comando atual reserva buffer pool de 1 GiB, acima dos 0,5 GB de RAM por serviço do plano Free; há uma alteração staged para 128 MiB e 20 conexões, ainda sem deploy. Depois de iniciar, exportar backup lógico e testar restauração isolada.
 3. Se o banco original for recuperável, manter MySQL e corrigir somente host, rede, SSL/CA e credenciais no Render.
 4. Se o banco original não puder ser recuperado, avaliar TiDB Cloud Starter com spending limit zero e teste de compatibilidade.
 5. Migrar somente depois de comparar contagem de registros, chaves, índices, JSON, ENUM, transações e resultados dos testes concorrentes.
