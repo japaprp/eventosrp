@@ -68,6 +68,10 @@ vm.runInContext("spaceForm({...spaces[0],name:'Novo espaço',checkInTime:'10:00'
 assert.equal(vm.runInContext("escapeHtml('<img src=x onerror=alert(1)>')",context),'&lt;img src=x onerror=alert(1)&gt;');
 vm.runInContext("reservation({...spaces[0],checkInTime:'10:00',checkOutTime:'08:00',minimumDays:2})",context);element('#plan').value='weekend';element('#check-in').value='2030-01-04T13:00';element('#check-in').oninput();assert.equal(element('#check-in').value,'2030-01-04T10:00');assert.equal(element('#check-out').value,'2030-01-07T08:00');assert.match(element('#quote').innerHTML,/3 diárias/);
 assert.equal(vm.runInContext("reservationStatus('approved')",context),'Pagamento aprovado');
+assert.equal(vm.runInContext("reservationStatus('requested')",context),'Aguardando confirmação do proprietário');
+assert.equal(vm.runInContext("reservationStatus('confirmed')",context),'Reserva confirmada pelo proprietário');
+assert.equal(vm.runInContext("reservationStatus('declined')",context),'Solicitação recusada pelo proprietário');
+
 assert.equal(vm.runInContext("reservationStatus('creating')",context),'Em conferência — não repita o pagamento');assert.equal(vm.runInContext("reservationStatus('pending','approved','none')",context),'Pagamento aprovado — atualização da reserva em processamento');assert.equal(vm.runInContext("reservationStatus('pending','rejected','refund_required')",context),'Pagamento aprovado fora da reserva — análise de reembolso necessária');
 let capturedPayload=null;
 context.capturePayload=value=>{capturedPayload=JSON.parse(JSON.stringify(value))};
