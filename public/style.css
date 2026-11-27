@@ -6,3 +6,15 @@
 .card{position:relative}.card-open{display:block;width:100%;text-align:left;background:transparent;border:0;padding:0}.card-open img{width:100%;height:216px;object-fit:cover}.card-open h3{padding:20px 20px 0}.card>p{margin:14px 20px}.card>[data-favorite]{position:absolute;right:12px;top:12px;width:38px;height:38px;border:0;border-radius:50%;background:white;font-size:24px}.card>[data-favorite].favorited{background:var(--green);color:white}.photo-gallery button{border:0;padding:0;background:transparent}.my-message{margin-left:20px}.their-message{margin-right:20px}
 
 .photo-gallery button{border:2px solid transparent;border-radius:8px;flex:none}.photo-gallery button[aria-pressed=true]{border-color:var(--green)}.photo-gallery button:focus-visible{outline:3px solid #547744;outline-offset:3px}.photo-preview{display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:12px;font-size:12px;line-height:1.5}.photo-preview figure{margin:0;min-width:0}.photo-preview img{width:100%;height:110px;object-fit:cover;border-radius:6px}.photo-preview figcaption{padding-top:6px;font-weight:600}#gallery-counter{font-size:12px;color:var(--muted)}
+
+
+/* Ilustração abstrata: não representa um espaço ou cliente real. */
+.hero-illustration{display:flex;align-items:center;justify-content:center;min-height:440px;padding:34px;background:radial-gradient(circle at 78% 20%,rgba(255,255,255,.8),transparent 28%),linear-gradient(135deg,#dce9e1 0%,#b9d0c3 48%,#e9e3d4 100%);overflow:hidden}
+.hero-illustration:before,.hero-illustration:after{content:"";position:absolute;border-radius:50%;pointer-events:none}
+.hero-illustration:before{width:250px;height:250px;right:-65px;top:-70px;background:rgba(37,78,64,.12)}
+.hero-illustration:after{width:190px;height:190px;left:-55px;bottom:10px;background:rgba(201,154,88,.18)}
+.hero-illustration-card{position:relative;z-index:1;width:min(78%,390px);padding:34px;border:1px solid rgba(255,255,255,.7);border-radius:22px;background:rgba(255,255,255,.78);box-shadow:0 24px 70px rgba(30,54,43,.16);backdrop-filter:blur(10px);display:flex;flex-direction:column;gap:14px}
+.hero-illustration-card span{font-size:11px;letter-spacing:.18em;font-weight:800;color:#557363}
+.hero-illustration-card strong{font-family:Georgia,serif;font-size:clamp(28px,3vw,42px);line-height:1.12;color:#254e40}
+.hero-illustration-card small{font-size:13px;line-height:1.55;color:#526273}
+.social-proof-mark{width:42px;height:42px;display:grid;place-items:center;border-radius:50%;background:#e1ebe4;color:#254e40;font-size:20px;font-weight:800;flex:0 0 auto}
