@@ -8,6 +8,15 @@ function env(string $key, string $default = ''): string {
     return $value === false || $value === null || $value === '' ? $default : (string) $value;
 }
 
+function isTransientDatabaseConnectionError(PDOException $error): bool {
+    $sqlState = (string) $error->getCode();
+    $driverCode = isset($error->errorInfo[1]) ? (int) $error->errorInfo[1] : 0;
+    if ($driverCode === 0 && ctype_digit($sqlState)) $driverCode = (int) $sqlState;
+
+    return in_array($sqlState, ['08001', '08S01', 'HY000'], true)
+        && in_array($driverCode, [1042, 1053, 2002, 2003, 2005, 2006, 2013], true);
+}
+
 function database(): PDO {
     static $pdo;
     if ($pdo instanceof PDO) return $pdo;
@@ -15,7 +24,7 @@ function database(): PDO {
     $options = [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_EMULATE_PREPARES => false,
-        PDO::ATTR_TIMEOUT => 8,
+        PDO::ATTR_TIMEOUT => 5,
         PDO::ATTR_PERSISTENT => false,
     ];
     $sslCa = env('DB_SSL_CA');
@@ -25,13 +34,20 @@ function database(): PDO {
         $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = true;
     }
 
-    $pdo = new PDO(
-        'mysql:host=' . env('DB_HOST', '127.0.0.1') . ';port=' . env('DB_PORT', '3306') . ';dbname=' . env('DB_NAME', 'encontro') . ';charset=utf8mb4',
-        env('DB_USER'),
-        env('DB_PASSWORD'),
-        $options
-    );
-    return $pdo;
+    $dsn = 'mysql:host=' . env('DB_HOST', '127.0.0.1') . ';port=' . env('DB_PORT', '3306') . ';dbname=' . env('DB_NAME', 'encontro') . ';charset=utf8mb4';
+    $maxAttempts = 3;
+    for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+        try {
+            $pdo = new PDO($dsn, env('DB_USER'), env('DB_PASSWORD'), $options);
+            return $pdo;
+        } catch (PDOException $error) {
+            if ($attempt === $maxAttempts || !isTransientDatabaseConnectionError($error)) throw $error;
+            error_log('Encontro MySQL transient connection failure; retry ' . $attempt . '/' . $maxAttempts . ' (SQLSTATE ' . (string) $error->getCode() . ').');
+            usleep($attempt * 1000000);
+        }
+    }
+
+    throw new RuntimeException('Não foi possível estabelecer conexão com o MySQL.');
 }
 
 function eventosrpHttpTestMode(): bool {
