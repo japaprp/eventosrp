@@ -16,6 +16,6 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Install isolated Firebase test tooling
-        run: npm install --no-save --package-lock=false firebase@12.6.0 @firebase/rules-unit-testing@5.0.0 firebase-tools@14.22.0
+        run: npm install --no-save --package-lock=false firebase@12.19.0 @firebase/rules-unit-testing@6.0.0 firebase-tools@15.37.0
       - name: Validate Realtime Database rules in emulator
         run: npx firebase emulators:exec --only database --project demo-reservas-rp "node tests/firebase-rules.mjs"
