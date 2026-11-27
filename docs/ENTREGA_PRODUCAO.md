@@ -1,5 +1,18 @@
 # Checklist técnico de entrega — Reservas RP
 
+## Atualização de estado — 27/11/2026, 20:38 UTC
+
+Esta atualização prevalece sobre os estados históricos abaixo.
+
+- PR #20 foi integrado no commit `ede73868a5518e90400e52ba850da3a94d7a197f` e publicado no Railway no deployment `f6339668-91a3-4549-8b5e-537fa914a050` (**SUCCESS**). A aplicação está online com uma réplica; sem falhas recentes.
+- A página pública foi corrigida para remover imagens Unsplash de demonstração e avatares fictícios. Sem fotos próprias, o catálogo mostra placeholder explícito; o filtro de localidade lista somente cidades presentes em anúncios publicados.
+- O FAQ informa que solicitações atuais não geram cobrança. Os textos de termos e privacidade foram substituídos por avisos provisórios; ainda não são documentos jurídicos finais.
+- PR #19 permanece draft, aberto e sem merge. A branch está sincronizada com main no HEAD `105ea58c53ff96fcd2183f0307ae993903c2f003`, mergeable=true, com 5/5 workflows PASS: Tests #165, HTTP #97, payment lifecycle #87, booking concurrency #89 e Reservas RP checks #105.
+- MySQL permanece `SLEEPING` com o volume original de 500 MB. Ferramentas de banco não habilitadas: handshake autenticado, inventário, `SELECT 1`, backup lógico e restauração permanecem BLOCKED/NOT RUN. Nenhuma migration foi aplicada.
+- Smoke test HTTP público pós-deploy permanece NOT RUN: o ambiente de verificação não conseguiu resolver/acessar o domínio. O status SUCCESS comprova o deploy do container, não a operação ponta a ponta.
+- Pagamentos, webhook, Firebase real, regras no Emulator/projeto real, Cloudinary no serviço, UID administrativo e documentos legais completos continuam pendentes. Não habilitar cobrança até homologar os fluxos.
+
+
 Atualizado em 27/11/2026. Este documento distingue testes automatizados do pacote e homologação real de produção.
 
 ## Estado confirmado
