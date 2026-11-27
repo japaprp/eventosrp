@@ -100,7 +100,7 @@ function login(after) {
     }
   };
   $('#signup').onclick=()=>{
-    creating=!creating;$('#signup-fields').hidden=!creating;$('#signup-consent').hidden=!creating;
+    creating=!creating;$('#signup-fields').hidden=!creating;
     for(const selector of ['#signup-name','#signup-phone']){$(selector).disabled=!creating;$(selector).required=creating}
     $('#auth-title').textContent=creating?'Cadastro rápido.':'Entre para reservar.';
     $('#auth-description').textContent=creating?'Só precisamos do seu nome, celular, e-mail e senha.':'Acesse com seu e-mail e senha.';
