@@ -178,8 +178,8 @@ try {
   $remaining->execute([$now]);
   respond(['received'=>true,'attempted'=>count($due),'remaining_due'=>(int)$remaining->fetchColumn()]);
  }
- if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations','upload-space-photo','delete-space-photo','chat-access','owner-requests','review-owner'],true))respond(['error'=>'Rota não encontrada.'],404);
- if((in_array($action,['my-spaces','host-reservations','owner-requests'],true)&&$method!=='GET')||(in_array($action,['save-space','upload-space-photo','delete-space-photo','chat-access','review-owner'],true)&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
+ if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations','upload-space-photo','delete-space-photo','chat-access','owner-requests','review-owner','review-reservation'],true))respond(['error'=>'Rota não encontrada.'],404);
+ if((in_array($action,['my-spaces','host-reservations','owner-requests'],true)&&$method!=='GET')||(in_array($action,['save-space','upload-space-photo','delete-space-photo','chat-access','review-owner','review-reservation'],true)&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
  if(($action==='reserve'&&$method!=='POST')||($action==='reservations'&&$method!=='GET')||($action==='profile'&&!in_array($method,['GET','POST'],true)))respond(['error'=>'Método não permitido.'],405);
  $header=$_SERVER['HTTP_AUTHORIZATION']??'';if(!preg_match('/^Bearer (.+)$/',$header,$match))respond(['error'=>'Entre na sua conta.'],401);
  try{$token=firebase()->createAuth()->verifyIdToken($match[1],true);}catch(Throwable $e){respond(['error'=>'Sessão inválida. Entre novamente.'],401);}
@@ -216,6 +216,29 @@ try {
    $pdo->commit();
   }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
   respond(['firebase_uid'=>$targetUid,'owner_status'=>$decision]);
+ }
+ if($action==='review-reservation'){
+  if((int)($_SERVER['CONTENT_LENGTH']??0)>5000)respond(['error'=>'Solicitação muito grande.'],413);
+  $input=json_decode(file_get_contents('php://input'),true,512,JSON_THROW_ON_ERROR);
+  $reservationId=$input['reservation_id']??'';$decision=$input['decision']??'';
+  if(!is_string($reservationId)||!preg_match('/^[a-f0-9]{32}$/',$reservationId)||!in_array($decision,['confirmed','declined'],true))respond(['error'=>'Decisão de reserva inválida.'],422);
+  $q=$pdo->prepare('SELECT space_id FROM reservations WHERE id=?');$q->execute([$reservationId]);$spaceId=$q->fetchColumn();
+  if(!$spaceId)respond(['error'=>'Solicitação não encontrada.'],404);
+  $pdo->beginTransaction();
+  try{
+   $q=$pdo->prepare('SELECT owner_id FROM spaces WHERE id=? FOR UPDATE');$q->execute([$spaceId]);$ownerId=$q->fetchColumn();
+   if((int)$ownerId!==(int)$userId){$pdo->rollBack();respond(['error'=>'Solicitação não encontrada para esta conta.'],404);}
+   $q=$pdo->prepare('SELECT status,check_in,blocked_until FROM reservations WHERE id=? AND space_id=? FOR UPDATE');$q->execute([$reservationId,$spaceId]);$reservation=$q->fetch(PDO::FETCH_ASSOC);
+   if(!$reservation||$reservation['status']!=='requested'){$pdo->rollBack();respond(['error'=>'Solicitação não está aguardando confirmação.'],409);}
+   if($decision==='confirmed'){
+    $q=$pdo->prepare("SELECT id FROM reservations WHERE space_id=? AND id<>? AND check_in < ? AND blocked_until > ? AND status IN ('creating','requested','confirmed','pending','approved') LIMIT 1");
+    $q->execute([$spaceId,$reservationId,$reservation['blocked_until'],$reservation['check_in']]);
+    if($q->fetchColumn()){$pdo->rollBack();respond(['error'=>'O período não está mais disponível para confirmação.'],409);}
+   }
+   $q=$pdo->prepare('UPDATE reservations SET status=? WHERE id=? AND status=\'requested\'');$q->execute([$decision,$reservationId]);
+   $pdo->commit();
+  }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+  respond(['reservation_id'=>$reservationId,'status'=>$decision]);
  }
 
  if($action==='chat-access'){
@@ -272,7 +295,7 @@ try {
  }
  if($action==='reservations'){$q=$pdo->prepare('SELECT r.id,r.event_date,r.check_in,r.check_out,r.plan,r.billable_days,r.total,r.status,r.payment_status,r.payment_attention,s.name FROM reservations r JOIN spaces s ON s.id=r.space_id WHERE r.user_id=? ORDER BY r.created_at DESC');$q->execute([$userId]);respond($q->fetchAll(PDO::FETCH_ASSOC));}
  if($action==='profile'&&$method==='GET'){$q=$pdo->prepare('SELECT name,phone,owner_status FROM users WHERE id=?');$q->execute([$userId]);$profile=$q->fetch(PDO::FETCH_ASSOC);$profile['is_platform_admin']=$isPlatformAdmin;respond($profile);}
- if($action==='reserve'&&(!env('MP_ACCESS_TOKEN')||!env('MP_WEBHOOK_SECRET')))respond(['error'=>'Pagamentos ainda não configurados.'],503);
+ if($action==='reserve'&&env('RESERVATIONS_PAYMENT_MODE','request')==='payment'&&(!env('MP_ACCESS_TOKEN')||!env('MP_WEBHOOK_SECRET')))respond(['error'=>'Pagamentos ainda não configurados.'],503);
  if((int)($_SERVER['CONTENT_LENGTH']??0)>12000)respond(['error'=>'Solicitação muito grande.'],413);
  $input=json_decode(file_get_contents('php://input'),true,512,JSON_THROW_ON_ERROR);
  if(!is_array($input))respond(['error'=>'Dados inválidos.'],400);
@@ -296,7 +319,7 @@ try {
  try{$quote=bookingQuote($input['check_in']??null,$input['check_out']??null,$plan,(string)$space['daily_price'],$space['weekend_price']===null?null:(string)$space['weekend_price']);enforceSpaceSchedule($space,$quote);}
  catch(InvalidArgumentException $e){$pdo->rollBack();respond(['error'=>$e->getMessage()],422);}
  $blockedUntil=(new DateTimeImmutable($quote['check_out'],new DateTimeZone('America/Sao_Paulo')))->modify('+'.(int)$space['cleanup_minutes'].' minutes')->format('Y-m-d H:i:s');
- $q=$pdo->prepare("SELECT id FROM reservations WHERE space_id=? AND check_in < ? AND blocked_until > ? AND status IN ('creating','pending','approved') LIMIT 1");$q->execute([$spaceId,$blockedUntil,$quote['check_in']]);
+ $q=$pdo->prepare("SELECT id FROM reservations WHERE space_id=? AND check_in < ? AND blocked_until > ? AND status IN ('creating','requested','confirmed','pending','approved') LIMIT 1");$q->execute([$spaceId,$blockedUntil,$quote['check_in']]);
  if($q->fetchColumn()){$pdo->rollBack();respond(['error'=>'Há uma solicitação ativa em parte deste período. Escolha outra entrada ou saída, ou contate o atendimento.'],409);}
  $id=bin2hex(random_bytes(16));
  $acceptedAt=(new DateTimeImmutable('now',new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
@@ -307,6 +330,10 @@ try {
  try {
   firebase()->createDatabase()->getReference('chats/'.$id.'/members/'.$uid)->set(true);
   if($space['owner_id']){$q=$pdo->prepare('SELECT firebase_uid FROM users WHERE id=?');$q->execute([$space['owner_id']]);$ownerUid=$q->fetchColumn();if($ownerUid)firebase()->createDatabase()->getReference('chats/'.$id.'/members/'.$ownerUid)->set(true);}
+  if(env('RESERVATIONS_PAYMENT_MODE','request')!=='payment'){
+   $q=$pdo->prepare("UPDATE reservations SET status='requested' WHERE id=? AND status='creating'");$q->execute([$id]);
+   respond(['reservation_id'=>$id,'status'=>'requested'],201);
+  }
   $url=rtrim(env('APP_URL'),'/');if(!str_starts_with($url,'https://'))throw new RuntimeException('Configure APP_URL com HTTPS para pagamentos.');
   $preferenceStartsAt=new DateTimeImmutable('now',new DateTimeZone('America/Sao_Paulo'));
   $preferenceExpiresAt=$preferenceStartsAt->modify('+3 days');
