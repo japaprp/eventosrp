@@ -65,3 +65,11 @@ O Cloudinary é o caminho de menor mudança porque a integração assinada já f
 6. Depois, configurar Cloudinary e homologar cadastro, fotos, reserva, checkout e webhook.
 
 Nenhuma instância, volume, bucket ou plano pago foi criado nesta avaliação.
+
+
+## Experiência da comunidade (sinal anedótico, não substitui documentação)
+
+- Uma discussão recente no Reddit relata cobrança acima do crédito mensal no Railway Hobby e recomenda conferir RAM/uso e política de sleep antes de migrar ou manter serviços ligados. Outro comentário observa que o primeiro request após sleep pode ter cold start. Isso reforça a decisão de não iniciar o MySQL antes de confirmar plano/crédito e de implementar retry limitado para falhas transitórias: https://www.reddit.com/r/microsaas/comments/1xj7d5a/railway_hobby_is_costing_me_1250month_any_cheaper/
+- Discussões de hospedagem de imagens citam R2 como alternativa simples quando a quota gratuita atende, mas há custo de configuração de bucket, políticas e CORS; no nosso caso, R2 ainda não está habilitado, enquanto Cloudinary já tem conta Free e integração preparada: https://www.reddit.com/r/indiedev/comments/1s5q4wd/best_cloudinary_alternatives_for_simple_public/
+
+Esses relatos são experiências individuais e podem estar sujeitos a planos/limites antigos. A decisão de infraestrutura continua baseada nos limites e preços publicados pelos provedores.
