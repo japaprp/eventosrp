@@ -91,6 +91,10 @@ Os workflows do GitHub também executam testes com MySQL descartável para conco
 - Cloudinary PHP upload: https://cloudinary.com/documentation/php_image_and_video_upload
 
 
+## Alternativas gratuitas de infraestrutura
+
+Consulte docs/ALTERNATIVAS_INFRAESTRUTURA.md para a comparação de Railway, Aiven, TiDB Cloud Starter, PlanetScale, Render, Supabase, Cloudflare R2/D1 e Cloudinary.
+
 ## Checklist de liberação
 
 Consulte docs/ENTREGA_PRODUCAO.md e docs/LEGAL_OPERATIONS_RELEASE_CHECKLIST.md antes da abertura pública. O endpoint de reconciliação e o workflow agendado estão preparados, mas permanecem inativos até a configuração do segredo privado.
