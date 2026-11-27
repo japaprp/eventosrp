@@ -178,8 +178,8 @@ try {
   $remaining->execute([$now]);
   respond(['received'=>true,'attempted'=>count($due),'remaining_due'=>(int)$remaining->fetchColumn()]);
  }
- if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations','upload-space-photo','delete-space-photo','chat-access'],true))respond(['error'=>'Rota não encontrada.'],404);
- if((in_array($action,['my-spaces','host-reservations'],true)&&$method!=='GET')||(in_array($action,['save-space','upload-space-photo','delete-space-photo','chat-access'],true)&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
+ if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations','upload-space-photo','delete-space-photo','chat-access','owner-requests','review-owner'],true))respond(['error'=>'Rota não encontrada.'],404);
+ if((in_array($action,['my-spaces','host-reservations','owner-requests'],true)&&$method!=='GET')||(in_array($action,['save-space','upload-space-photo','delete-space-photo','chat-access','review-owner'],true)&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
  if(($action==='reserve'&&$method!=='POST')||($action==='reservations'&&$method!=='GET')||($action==='profile'&&!in_array($method,['GET','POST'],true)))respond(['error'=>'Método não permitido.'],405);
  $header=$_SERVER['HTTP_AUTHORIZATION']??'';if(!preg_match('/^Bearer (.+)$/',$header,$match))respond(['error'=>'Entre na sua conta.'],401);
  try{$token=firebase()->createAuth()->verifyIdToken($match[1],true);}catch(Throwable $e){respond(['error'=>'Sessão inválida. Entre novamente.'],401);}
@@ -194,6 +194,30 @@ try {
  $pdo=database();
  $q=$pdo->prepare('INSERT INTO users(firebase_uid,email) VALUES (?,?) ON DUPLICATE KEY UPDATE email=VALUES(email)');$q->execute([$uid,$email]);
  $q=$pdo->prepare('SELECT id FROM users WHERE firebase_uid=?');$q->execute([$uid]);$userId=$q->fetchColumn();
+ $platformAdminUid=env('PLATFORM_ADMIN_FIREBASE_UID');
+ $isPlatformAdmin=$platformAdminUid!==''&&hash_equals($platformAdminUid,(string)$uid);
+ if($action==='owner-requests'){
+  if(!$isPlatformAdmin)respond(['error'=>'Acesso restrito ao administrador da plataforma.'],403);
+  $q=$pdo->query("SELECT u.firebase_uid,u.email,u.name,u.phone,u.owner_status,u.created_at,COUNT(s.id) AS spaces_count FROM users u LEFT JOIN spaces s ON s.owner_id=u.id WHERE u.owner_status='pending' GROUP BY u.id ORDER BY u.created_at ASC");
+  respond($q->fetchAll(PDO::FETCH_ASSOC));
+ }
+ if($action==='review-owner'){
+  if(!$isPlatformAdmin)respond(['error'=>'Acesso restrito ao administrador da plataforma.'],403);
+  if((int)($_SERVER['CONTENT_LENGTH']??0)>5000)respond(['error'=>'Solicitação muito grande.'],413);
+  $input=json_decode(file_get_contents('php://input'),true,512,JSON_THROW_ON_ERROR);
+  $targetUid=$input['firebase_uid']??'';$decision=$input['decision']??'';
+  if(!is_string($targetUid)||$targetUid===''||strlen($targetUid)>128||$targetUid===$uid||!in_array($decision,['approved','rejected'],true))respond(['error'=>'Solicitação de aprovação inválida.'],422);
+  $pdo->beginTransaction();
+  try{
+   $q=$pdo->prepare("SELECT id,owner_status FROM users WHERE firebase_uid=? FOR UPDATE");$q->execute([$targetUid]);$target=$q->fetch(PDO::FETCH_ASSOC);
+   if(!$target||$target['owner_status']!=='pending'){$pdo->rollBack();respond(['error'=>'Solicitação de proprietário não encontrada ou já analisada.'],404);}
+   $q=$pdo->prepare('UPDATE users SET owner_status=? WHERE id=?');$q->execute([$decision,(int)$target['id']]);
+   if($decision==='rejected'){$q=$pdo->prepare('UPDATE spaces SET active=0 WHERE owner_id=?');$q->execute([(int)$target['id']]);}
+   $pdo->commit();
+  }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+  respond(['firebase_uid'=>$targetUid,'owner_status'=>$decision]);
+ }
+
  if($action==='chat-access'){
   if(!requestIsSecure())respond(['error'=>'HTTPS obrigatório.'],400);
   if((int)($_SERVER['CONTENT_LENGTH']??0)>5000)respond(['error'=>'Solicitação muito grande.'],413);
@@ -224,7 +248,9 @@ try {
  if($action==='save-space'){
   if((int)($_SERVER['CONTENT_LENGTH']??0)>40000)respond(['error'=>'Solicitação muito grande.'],413);
   $input=json_decode(file_get_contents('php://input'),true,512,JSON_THROW_ON_ERROR);if(!is_array($input))respond(['error'=>'Dados inválidos.'],400);
-  try{$data=validateSpace($input,hash('sha256',$uid));}catch(InvalidArgumentException $e){respond(['error'=>$e->getMessage()],422);}
+  $q=$pdo->prepare('SELECT owner_status FROM users WHERE id=?');$q->execute([$userId]);$ownerStatus=(string)$q->fetchColumn();
+  if($ownerStatus!=='approved'){$q=$pdo->prepare("UPDATE users SET owner_status='pending' WHERE id=? AND owner_status IN ('none','rejected')");$q->execute([$userId]);$ownerStatus='pending';}
+  try{$data=validateSpace($input,hash('sha256',$uid),$ownerStatus);}catch(InvalidArgumentException $e){respond(['error'=>$e->getMessage()],422);}
   $id=$input['id']??null;$oldPhotos=[];$pdo->beginTransaction();
   if($id!==null){
    if(!filter_var($id,FILTER_VALIDATE_INT)||$id<1){$pdo->rollBack();respond(['error'=>'Espaço inválido.'],422);}
@@ -245,7 +271,7 @@ try {
   $q=$pdo->prepare('SELECT * FROM spaces WHERE id=? AND owner_id=?');$q->execute([$id,$userId]);respond(publicSpace($q->fetch(PDO::FETCH_ASSOC)),201);
  }
  if($action==='reservations'){$q=$pdo->prepare('SELECT r.id,r.event_date,r.check_in,r.check_out,r.plan,r.billable_days,r.total,r.status,r.payment_status,r.payment_attention,s.name FROM reservations r JOIN spaces s ON s.id=r.space_id WHERE r.user_id=? ORDER BY r.created_at DESC');$q->execute([$userId]);respond($q->fetchAll(PDO::FETCH_ASSOC));}
- if($action==='profile'&&$method==='GET'){$q=$pdo->prepare('SELECT name,phone FROM users WHERE id=?');$q->execute([$userId]);respond($q->fetch(PDO::FETCH_ASSOC));}
+ if($action==='profile'&&$method==='GET'){$q=$pdo->prepare('SELECT name,phone,owner_status FROM users WHERE id=?');$q->execute([$userId]);$profile=$q->fetch(PDO::FETCH_ASSOC);$profile['is_platform_admin']=$isPlatformAdmin;respond($profile);}
  if($action==='reserve'&&(!env('MP_ACCESS_TOKEN')||!env('MP_WEBHOOK_SECRET')))respond(['error'=>'Pagamentos ainda não configurados.'],503);
  if((int)($_SERVER['CONTENT_LENGTH']??0)>12000)respond(['error'=>'Solicitação muito grande.'],413);
  $input=json_decode(file_get_contents('php://input'),true,512,JSON_THROW_ON_ERROR);
