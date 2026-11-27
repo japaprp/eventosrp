@@ -6,10 +6,10 @@ Aplicação web em português com catálogo público, cadastro de clientes e pro
 
 - O pacote de entrega está no PR #19, branch `delivery/2026-11-27-production-readiness`, mantido como draft.
 - Cinco workflows GitHub Actions associados ao HEAD atual concluíram com sucesso: testes gerais, concorrência HTTP isolada, ciclo de vida de pagamento MySQL, concorrência de reservas MySQL e verificações do Reservas RP.
-- O serviço PHP `eventosrp` está online no Railway, conectado à branch `main`, commit implantado `c1431ba4327bb3f35419a3328ea2bcdb7d966a1c`. Esse deployment não contém as alterações exclusivas do PR #19.
-- O serviço MySQL Railway está online e o log do MySQL 8.4.13 confirma `ready for connections`. O volume original de 500 MB permanece anexado.
+- O serviço PHP `eventosrp` está configurado no Railway, conectado à branch `main`, commit `c1431ba4327bb3f35419a3328ea2bcdb7d966a1c`. Na inspeção de 27/11/2026 às 17:31 UTC, o estado atual era `SLEEPING`; `sleepApplication=true`. O log comprova que Apache iniciou e foi encerrado pelo Railway após o período sem tráfego. Esse deployment não contém as alterações exclusivas do PR #19.
+- O serviço MySQL Railway está configurado com `sleepApplication=true` e também estava `SLEEPING` na inspeção de 27/11/2026 às 17:31 UTC. O log do deployment comprova que MySQL 8.4.13 chegou a `ready for connections` e depois recebeu `SHUTDOWN` do Railway. O volume original de 500 MB permanece anexado; isso não comprova que o serviço esteja aceitando conexões agora.
 - O estado online do processo MySQL não comprova autenticação, integridade do schema ou acesso aos dados. O conector de banco Railway não está habilitado nesta conta; `SELECT 1`, inventário SQL, backup lógico e restauração permanecem não executados.
-- A URL pública e os fluxos reais ainda não foram homologados nesta sessão. Não interpretar ausência de erros nos logs como teste HTTP bem-sucedido.
+- O domínio Railway existe, mas o teste HTTP externo não foi concluído (o acesso de verificação retornou erro interno) e não houve requisições HTTP nos logs consultados. Como o deployment está `SLEEPING`, a disponibilidade real e o cold start ainda precisam ser testados.
 - O PR #19 não foi integrado nem implantado. Não executar migrations em produção antes de backup restaurável e preflight no banco real.
 
 Não declare a aplicação pronta para abertura comercial até concluir as validações operacionais, de armazenamento, autenticação, conteúdo real e revisão legal descritas em `docs/ENTREGA_PRODUCAO.md` e `docs/LEGAL_OPERATIONS_RELEASE_CHECKLIST.md`.
@@ -107,3 +107,7 @@ Consulte [docs/ALTERNATIVAS_INFRAESTRUTURA.md](docs/ALTERNATIVAS_INFRAESTRUTURA.
 ## Checklist de liberação
 
 Consulte [docs/ENTREGA_PRODUCAO.md](docs/ENTREGA_PRODUCAO.md) e [docs/LEGAL_OPERATIONS_RELEASE_CHECKLIST.md](docs/LEGAL_OPERATIONS_RELEASE_CHECKLIST.md) antes da abertura pública. O endpoint de reconciliação e o workflow agendado estão preparados, mas permanecem inativos até a configuração do segredo privado.
+
+## Estado atual de execução — atualização 27/11/2026
+
+Os serviços PHP e MySQL foram encontrados em `SLEEPING`, com `sleepApplication=true`. O MySQL iniciou corretamente e registrou `ready for connections`, mas recebeu sinal de shutdown após inatividade. Não afirmar que banco ou aplicação estão online enquanto o estado atual for `SLEEPING`. Antes de homologação comercial, revisar a política de sleep e o custo de manter os dois serviços ativos; não desabilitar o sleep nem alterar o plano sem autorização explícita. Consulte `docs/RECUPERACAO_MYSQL_RAILWAY.md`.
