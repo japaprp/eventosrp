@@ -5,7 +5,7 @@ Atualizado em 27/11/2026. Este documento distingue testes automatizados do pacot
 ## Estado confirmado
 
 - PR #19 está aberto, em draft, na branch `delivery/2026-11-27-production-readiness`; não foi integrado.
-- Cinco workflows associados ao HEAD atual concluíram com sucesso: `Tests`, `Isolated HTTP booking concurrency`, `MySQL payment lifecycle race tests`, `MySQL booking concurrency integration` e `Reservas RP checks`.
+- Cinco workflows concluíram com sucesso no commit `3761388fbdc46f79c8747bf2366ddd0546546ff4`: Tests #120, Isolated HTTP #52, MySQL payment lifecycle #42, MySQL booking concurrency #44 e Reservas RP checks #58. O HEAD atual `9081e04ec29d46ba54c7b3dc3433752c04d41a94` inclui depois regras Firebase e alterações documentais; CI no HEAD atual está NOT RUN.
 - Serviço PHP `eventosrp` está configurado no Railway, branch `main`, commit `c1431ba4327bb3f35419a3328ea2bcdb7d966a1c`; estado atual `SLEEPING`, `sleepApplication=true` (Serverless, acorda na próxima requisição). O deployment não contém o PR #19.
 - Serviço MySQL está atualmente `SLEEPING`, com `sleepApplication=true`. O deployment anterior confirmou MySQL 8.4.13 e `ready for connections`, mas o log também mostra shutdown posterior por inatividade; o banco Serverless deve acordar na próxima conexão. O volume original de 500 MB continua anexado em `/var/lib/mysql`.
 - O start command foi ajustado para buffer pool 128 MiB e máximo de 20 conexões.
@@ -39,9 +39,9 @@ Atualizado em 27/11/2026. Este documento distingue testes automatizados do pacot
 - O serviço está configurado na branch `main`, mas atualmente `SLEEPING`; o PR #19 não está em produção. Não fazer merge ou deploy sem autorização específica.
 - Não foi confirmada resposta HTTP pública nesta sessão; logs sem exceções não substituem smoke test.
 - Sem Cloudinary configurado, upload real não está disponível.
-- Sem teste Firebase real, autenticação ponta a ponta não está homologada.
+- Sem teste Firebase real, autenticação ponta a ponta não está homologada. As regras de chat estão versionadas, mas Emulator e publicação no projeto correto ainda são NOT RUN.
 - Pagamentos e webhooks reais estão intencionalmente reservados para a última etapa.
-- Termos e privacidade são provisórios e não podem ser apresentados como documentos jurídicos finais sem dados reais da operadora e revisão apropriada.
+- Termos e privacidade são provisórios e não podem ser apresentados como documentos jurídicos finais sem dados reais da operadora e revisão apropriada. O aceite do cadastro ainda não é persistido no backend e o fluxo Google não registra esse aceite.
 
 ## Critério de aceite técnico
 
