@@ -6,13 +6,13 @@ Atualizado em 27/11/2026. Este documento distingue testes automatizados do pacot
 
 - PR #19 está aberto, em draft, na branch `delivery/2026-11-27-production-readiness`; não foi integrado.
 - Cinco workflows associados ao HEAD atual concluíram com sucesso: `Tests`, `Isolated HTTP booking concurrency`, `MySQL payment lifecycle race tests`, `MySQL booking concurrency integration` e `Reservas RP checks`.
-- Serviço PHP `eventosrp` está online no Railway, conectado à branch `main`, commit implantado `c1431ba4327bb3f35419a3328ea2bcdb7d966a1c`. Esse deployment não contém o PR #19.
-- Serviço MySQL está online; o deployment confirmou MySQL 8.4.13 e log `ready for connections`. O volume original de 500 MB continua anexado em `/var/lib/mysql`.
+- Serviço PHP `eventosrp` está configurado no Railway, branch `main`, commit `c1431ba4327bb3f35419a3328ea2bcdb7d966a1c`; estado atual `SLEEPING`, `sleepApplication=true`. O deployment não contém o PR #19.
+- Serviço MySQL está atualmente `SLEEPING`, com `sleepApplication=true`. O deployment anterior confirmou MySQL 8.4.13 e `ready for connections`, mas o log também mostra shutdown posterior. O volume original de 500 MB continua anexado em `/var/lib/mysql`.
 - O start command foi ajustado para buffer pool 128 MiB e máximo de 20 conexões.
 - O proxy TCP está ativo em `switchyard.proxy.rlwy.net:48927`, destino porta 3306.
 - As ferramentas de banco Railway não estão habilitadas para esta conta. Handshake autenticado, `SELECT 1`, inventário SQL, backup lógico e restauração de teste permanecem BLOCKED/NOT RUN.
 - Backup manual de volume Railway exigiria plano Pro; não foi contratado nem autorizado.
-- Não houve teste HTTP externo confirmado nesta sessão. A URL pública e o fluxo real de reservas continuam NOT RUN.
+- Não houve teste HTTP externo confirmado nesta sessão. O domínio existe, mas a verificação externa retornou erro interno e os logs não registraram requisições. Smoke test, cold start e fluxo real de reservas continuam NOT RUN.
 - O ambiente atual da aplicação não tem variáveis `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET`; pagamento real e webhook não estão homologados.
 - As variáveis privadas Cloudinary ainda precisam ser configuradas no ambiente que receberá o PR. Firebase também precisa de teste real com contas controladas.
 - Nenhuma migration foi executada no banco de produção.
@@ -33,9 +33,9 @@ Atualizado em 27/11/2026. Este documento distingue testes automatizados do pacot
 
 ## Bloqueios que não podem ser mascarados
 
-- MySQL online e log `ready for connections` não provam autenticação nem schema válido.
+- MySQL `ready for connections` em log histórico não significa serviço ativo agora: estado atual `SLEEPING`. Também não prova autenticação nem schema válido.
 - Sem backup restaurável, migrations em banco existente permanecem bloqueadas.
-- O serviço online está na branch `main`; o PR #19 não está em produção. Não fazer merge ou deploy sem autorização específica.
+- O serviço está configurado na branch `main`, mas atualmente `SLEEPING`; o PR #19 não está em produção. Não fazer merge ou deploy sem autorização específica.
 - Não foi confirmada resposta HTTP pública nesta sessão; logs sem exceções não substituem smoke test.
 - Sem Cloudinary configurado, upload real não está disponível.
 - Sem teste Firebase real, autenticação ponta a ponta não está homologada.
@@ -49,3 +49,4 @@ A entrega técnica só pode ser marcada como concluída quando os fluxos funcion
 ## Build reproduzível
 
 - [ ] Confirmar e versionar `composer.lock` em ambiente PHP/Composer controlado. Sem lockfile, `composer install` pode resolver versões diferentes em execuções futuras.
+- [ ] Definir, após conferir custo/plano, se `sleepApplication` deve ser desabilitado nos serviços app e MySQL para a operação real. A configuração atual deixa ambos `SLEEPING`; não alterar sem autorização de custo.
