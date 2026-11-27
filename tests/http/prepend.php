@@ -20,23 +20,28 @@ if (PHP_SAPI === 'cli-server' && getenv('EVENTOSRP_HTTP_TEST') === '1') {
 }
 
 final class EventosRpHttpTestClaims {
+    public function __construct(private string $uid, private string $email) {}
     public function get(string $name, mixed $default = null): mixed {
         return match ($name) {
-            'sub' => 'eventosrp-http-test-user',
-            'email' => 'http-test@example.invalid',
+            'sub' => $this->uid,
+            'email' => $this->email,
             default => $default,
         };
     }
 }
 final class EventosRpHttpTestToken {
-    public function claims(): EventosRpHttpTestClaims { return new EventosRpHttpTestClaims(); }
+    public function __construct(private string $uid, private string $email) {}
+    public function claims(): EventosRpHttpTestClaims { return new EventosRpHttpTestClaims($this->uid, $this->email); }
 }
 final class EventosRpHttpTestAuth {
     public function verifyIdToken(string $token, bool $checkIfRevoked = false): EventosRpHttpTestToken {
-        if ($token !== 'isolated-http-test-token') {
-            throw new RuntimeException('Invalid isolated test token.');
-        }
-        return new EventosRpHttpTestToken();
+        $users = [
+            'isolated-http-test-token' => ['eventosrp-http-test-user', 'http-test@example.invalid'],
+            'isolated-http-test-owner-a' => ['eventosrp-http-test-owner-a', 'owner-a@example.invalid'],
+            'isolated-http-test-owner-b' => ['eventosrp-http-test-owner-b', 'owner-b@example.invalid'],
+        ];
+        if (!isset($users[$token])) throw new RuntimeException('Invalid isolated test token.');
+        return new EventosRpHttpTestToken($users[$token][0], $users[$token][1]);
     }
 }
 final class EventosRpHttpTestReference {

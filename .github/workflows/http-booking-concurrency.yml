@@ -69,6 +69,7 @@ jobs:
           php -l src/bootstrap.php
           php -l tests/http/prepend.php
           php -l tests/http/concurrent_booking.php
+          php -l tests/http/space_owner_isolation.php
           php -l public/api.php
       - name: Run real HTTP concurrency test with isolated adapters
         shell: bash
@@ -95,6 +96,10 @@ jobs:
             exit 1
           fi
           if ! php tests/http/concurrent_booking.php; then
+            cat /tmp/eventosrp-http-test-server.log
+            exit 1
+          fi
+          if ! php tests/http/space_owner_isolation.php; then
             cat /tmp/eventosrp-http-test-server.log
             exit 1
           fi
