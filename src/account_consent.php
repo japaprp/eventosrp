@@ -5,20 +5,11 @@ declare(strict_types=1);
  * Resolve the only acceptable account-consent versions and immutable HTTPS URLs.
  * Test-only values are available solely inside the repository's isolated HTTP harness.
  */
-function accountConsentRequirements(): ?array {
-    if (function_exists('eventosrpHttpTestMode') && eventosrpHttpTestMode()) {
-        return [
-            'terms_version' => 'test-terms-v1',
-            'privacy_version' => 'test-privacy-v1',
-            'terms_url' => 'https://eventosrp-test.invalid/terms-v1',
-            'privacy_url' => 'https://eventosrp-test.invalid/privacy-v1',
-        ];
-    }
-
-    $termsVersion = trim(env('ACCOUNT_TERMS_VERSION'));
-    $privacyVersion = trim(env('ACCOUNT_PRIVACY_VERSION'));
-    $termsUrl = trim(env('ACCOUNT_TERMS_URL'));
-    $privacyUrl = trim(env('ACCOUNT_PRIVACY_URL'));
+function accountConsentBuildRequirements(string $termsVersion, string $privacyVersion, string $termsUrl, string $privacyUrl): ?array {
+    $termsVersion = trim($termsVersion);
+    $privacyVersion = trim($privacyVersion);
+    $termsUrl = trim($termsUrl);
+    $privacyUrl = trim($privacyUrl);
 
     $validVersion = static fn(string $value): bool =>
         preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/D', $value) === 1;
@@ -44,6 +35,24 @@ function accountConsentRequirements(): ?array {
         'terms_url' => $termsUrl,
         'privacy_url' => $privacyUrl,
     ];
+}
+
+function accountConsentRequirements(): ?array {
+    if (function_exists('eventosrpHttpTestMode') && eventosrpHttpTestMode()) {
+        return accountConsentBuildRequirements(
+            'test-terms-v1',
+            'test-privacy-v1',
+            'https://eventosrp-test.invalid/terms-v1',
+            'https://eventosrp-test.invalid/privacy-v1'
+        );
+    }
+
+    return accountConsentBuildRequirements(
+        env('ACCOUNT_TERMS_VERSION'),
+        env('ACCOUNT_PRIVACY_VERSION'),
+        env('ACCOUNT_TERMS_URL'),
+        env('ACCOUNT_PRIVACY_URL')
+    );
 }
 
 function accountConsentIsCurrent(PDO $pdo, int $userId, array $requirements): bool {
