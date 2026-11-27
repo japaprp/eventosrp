@@ -4,16 +4,16 @@
 
 1. Recuperar o MySQL usado pelo Render. O endpoint de catálogo apresentou HTTP 503. GET /ready.php foi criado para executar SELECT 1; confirmar apenas o host/porta (sem senha) do DB_HOST no Render e comparar com o provedor realmente ativo. GET /health.php verifica somente o processo PHP.
 2. O serviço MySQL Railway consultado está sem deployment ativo. A porta TCP pública aceita conexão, mas não envia handshake MySQL. Não redeployar sem confirmar custo e persistência do volume.
-3. Se o banco atual estiver no Aiven Free MySQL, verificar o aviso de encerramento da oferta gratuita em 21/12/2026. Não assumir que existe continuidade gratuita.
-4. Antes de qualquer migração, exportar backup, verificar integridade e testar restauração em banco separado.
-5. Configurar Cloudinary no serviço PHP. Sem CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY e CLOUDINARY_API_SECRET, o upload não funciona.
-6. Configurar Firebase service account JSON em FIREBASE_CREDENTIALS_JSON ou manter caminho privado válido em FIREBASE_CREDENTIALS.
-7. Validar Mercado Pago em sandbox e depois em produção. Não usar token de teste com MP_SANDBOX=false nem token live com MP_SANDBOX=true.
-8. Completar os dados da operadora e a revisão dos termos conforme LEGAL_OPERATIONS_RELEASE_CHECKLIST.md.
+4. Aiven não pôde ser inventariado pelo conector; se o banco atual estiver lá, verificar o aviso de encerramento da oferta gratuita em 21/12/2026. Não assumir continuidade gratuita.
+5. Antes de qualquer migração, exportar backup, calcular SHA-256 e testar restauração em banco separado. Executar `database/preflight_readonly.sql` e inspecionar o schema real antes de decidir quais migrations 002–007 faltam.
+6. Configurar Cloudinary no serviço PHP. Sem CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY e CLOUDINARY_API_SECRET, o upload não funciona. A conta Free tem 64 assets de amostra; não há assets com prefixo `eventosrp`.
+7. Configurar Firebase service account JSON em FIREBASE_CREDENTIALS_JSON ou manter caminho privado válido em FIREBASE_CREDENTIALS.
+8. Validar Mercado Pago em sandbox e depois em produção. Não usar token de teste com MP_SANDBOX=false nem token live com MP_SANDBOX=true.
+9. Completar os dados da operadora e a revisão dos termos conforme LEGAL_OPERATIONS_RELEASE_CHECKLIST.md. O aceite de termos da conta ainda não é persistido pelo backend.
 
 ## Homologação funcional
 
-- [ ] Após publicar o pacote, configurar o health check do Render para /health.php. Não usar /ready.php como health check de reinício; usar /ready.php para diagnóstico do banco.
+- [ ] Após publicar o pacote, configurar o health check do Render para /health.php. Não usar /ready.php como health check de reinício; usar /ready.php para diagnóstico do banco. No `main` atual, esses endpoints ainda não existem e o caminho cai no fallback HTML.
 
 - [ ] Cadastro real de cliente e login.
 - [ ] Cadastro real de proprietário.
