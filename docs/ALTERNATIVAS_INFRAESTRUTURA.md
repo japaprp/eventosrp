@@ -43,10 +43,10 @@ Referências:
 | Opção | Situação | Decisão |
 |---|---|---|
 | Cloudinary existente | Conta conectada e uso observado baixo | Usar no MVP; configurar cloud name, API key e API secret somente no backend |
-| Cloudflare R2 | Conta conectada, sem bucket identificado | Não criar agora; exigiria configuração S3, CORS, upload e entrega de imagens |
+| Cloudflare R2 | Conta conectada, mas a API respondeu 403 `Please enable R2 through the Cloudflare Dashboard`; nenhum bucket pode ser listado | Não ativado; exige habilitação no painel e configuração S3, CORS, upload e entrega de imagens |
 | Render filesystem | Efêmero no plano Free | Nunca armazenar fotos de clientes ou espaços localmente |
 
-O Cloudinary é o caminho de menor mudança porque a integração assinada já foi preparada. Não copiar assets existentes de outros projetos nem usar imagens genéricas como fotos de anúncios.
+O Cloudinary é o caminho de menor mudança porque a integração assinada já foi preparada. A conta está no plano Free, com 0,17/25 créditos usados e 64 assets de amostra (não são fotos reais do Reservas RP). Não copiar esses assets nem usar imagens genéricas como fotos de anúncios.
 
 ## Aplicação e pagamentos
 
