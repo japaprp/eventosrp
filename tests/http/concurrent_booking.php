@@ -88,8 +88,8 @@ $created = null;
 foreach ($results as [$status, $response]) {
     $decoded = json_decode($response, true);
     if ($status === 201) {
-        if (!is_array($decoded) || empty($decoded['reservation_id']) || empty($decoded['checkout_url'])) {
-            failTest('The HTTP 201 response did not include the mocked checkout response.');
+        if (!is_array($decoded) || empty($decoded['reservation_id']) || ($decoded['status'] ?? '') !== 'requested' || isset($decoded['checkout_url'])) {
+            failTest('The HTTP 201 response must create a request without a checkout URL.');
         }
         $created = (string) $decoded['reservation_id'];
     }
@@ -106,7 +106,7 @@ $pdo = new PDO(
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]
 );
 $all = (int) $pdo->query('SELECT COUNT(*) FROM reservations')->fetchColumn();
-$active = (int) $pdo->query("SELECT COUNT(*) FROM reservations WHERE status IN ('creating','pending','approved')")->fetchColumn();
+$active = (int) $pdo->query("SELECT COUNT(*) FROM reservations WHERE status IN ('creating','pending','approved','requested','confirmed')")->fetchColumn();
 $failed = (int) $pdo->query("SELECT COUNT(*) FROM reservations WHERE status='failed'")->fetchColumn();
 $events = (int) $pdo->query('SELECT COUNT(*) FROM reservation_payment_events')->fetchColumn();
 $q = $pdo->prepare('SELECT status,preference_id,hold_expires_at,total,payment_status,payment_attention FROM reservations WHERE id=?');
@@ -115,12 +115,12 @@ $row = $q->fetch(PDO::FETCH_ASSOC);
 if ($all !== 1 || $active !== 1 || $failed !== 0 || $events !== 0) {
     failTest("Unexpected persisted rows: all={$all}, active={$active}, failed={$failed}, payment_events={$events}.");
 }
-if (!$row || $row['status'] !== 'pending' || !$row['preference_id'] || !$row['hold_expires_at'] || (float) $row['total'] <= 0 || $row['payment_status'] !== null || $row['payment_attention'] !== 'none') {
-    failTest('Successful reservation is incomplete or remains in an unexpected state: ' . json_encode($row));
+if (!$row || $row['status'] !== 'requested' || $row['preference_id'] !== null || $row['hold_expires_at'] !== null || (float) $row['total'] <= 0 || $row['payment_status'] !== null || $row['payment_attention'] !== 'none') {
+    failTest('Payment-free reservation must persist as a request without checkout or payment holds: ' . json_encode($row));
 }
 $uid = $pdo->query("SELECT COUNT(*) FROM users WHERE firebase_uid='eventosrp-http-test-user'")->fetchColumn();
 if ((int) $uid !== 1) failTest('Expected exactly one isolated test user row.');
 
 echo "PASS: real HTTP endpoint returned one 201 and one 409 for concurrent requests.\n";
-echo "PASS: one pending reservation persisted; no duplicate, failed, or partial reservation rows.\n";
-echo "PASS: Firebase and Mercado Pago were intercepted by test-only adapters; no external payment call was made.\n";
+echo "PASS: one payment-free request persisted; no duplicate, failed, or partial reservation rows.\n";
+echo "PASS: Firebase was intercepted by the test-only adapter; no payment provider was called.\n";
