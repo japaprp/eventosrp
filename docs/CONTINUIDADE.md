@@ -5,7 +5,7 @@
 Esta seção prevalece sobre notas históricas abaixo quando houver divergência de status. O repositório é `japaprp/eventosrp`; o trabalho de entrega está isolado em `delivery/2026-11-27-production-readiness`, PR #19 em rascunho. A branch `main` permanece no commit `3c0168ce938be20059aa8eb512a28fb7c75ee829`.
 
 ### Código e testes
-- O pacote atual inclui cadastro de múltiplos espaços por proprietário, fotos via upload assinado Cloudinary, autorização do proprietário, aceite das condições da reserva, ciclo de pagamentos mais completo, reconciliação e endpoints health/readiness.
+- O pacote atual inclui cadastro de múltiplos espaços por proprietário, fotos via upload assinado Cloudinary, autorização do proprietário, aceite das condições da reserva, ciclo de pagamentos mais completo, reconciliação, endpoints health/readiness e retry PDO limitado para erros transitórios/cold start do MySQL.
 - Os testes de PHP, frontend, navegador, concorrência MySQL, concorrência HTTP e ciclo de pagamentos passaram no último commit de código testado.
 - O workflow HTTP também validou `database/preflight_readonly.sql`, os endpoints `/health.php` e `/ready.php), isolamento de três espaços por proprietário e proteção contra configuração insegura de teste.
 - Os últimos commits de documentação não alteram código de produção.
