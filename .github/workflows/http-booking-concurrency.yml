@@ -11,6 +11,7 @@ on:
       - 'src/cloudinary.php'
       - 'src/payments.php'
       - 'database/schema.sql'
+      - 'database/preflight_readonly.sql'
       - 'database/migrations/**'
       - 'tests/http/**'
       - '.github/workflows/http-booking-concurrency.yml'
@@ -64,6 +65,9 @@ jobs:
       - name: Insert one explicit disposable listing fixture
         run: |
           mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -proot eventosrp_http_test -e "INSERT INTO spaces (name,city,type,capacity,daily_price,check_in_time,check_out_time,minimum_days,cleanup_minutes,active,is_demo) VALUES ('Fixture HTTP isolada','Ribeirão Preto','Salão',20,100.00,'09:00:00','09:00:00',1,0,1,0)"
+      - name: Validate read-only database preflight
+        run: |
+          mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -proot eventosrp_http_test < database/preflight_readonly.sql
       - name: Lint HTTP test harness and endpoint dependencies
         run: |
           php -l src/bootstrap.php
