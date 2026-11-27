@@ -91,6 +91,10 @@ Os workflows do GitHub também executam testes com MySQL descartável para conco
 - Cloudinary PHP upload: https://cloudinary.com/documentation/php_image_and_video_upload
 
 
+## Recuperação do banco de produção
+
+Consulte [docs/RECUPERACAO_MYSQL_RAILWAY.md](docs/RECUPERACAO_MYSQL_RAILWAY.md) para as evidências do Railway, a alteração de memória staged (não aplicada), os pré-requisitos de backup e a sequência segura de restauração.
+
 ## Alternativas gratuitas de infraestrutura
 
 Consulte docs/ALTERNATIVAS_INFRAESTRUTURA.md para a comparação de Railway, Aiven, TiDB Cloud Starter, PlanetScale, Render, Supabase, Cloudflare R2/D1 e Cloudinary.
