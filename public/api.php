@@ -187,13 +187,6 @@ try {
  $header=$_SERVER['HTTP_AUTHORIZATION']??'';if(!preg_match('/^Bearer (.+)$/',$header,$match))respond(['error'=>'Entre na sua conta.'],401);
  try{$token=firebase()->createAuth()->verifyIdToken($match[1],true);}catch(Throwable $e){respond(['error'=>'Sessão inválida. Entre novamente.'],401);}
  $uid=$token->claims()->get('sub');$email=$token->claims()->get('email','');
- if($action==='upload-space-photo'){
-  if(!requestIsSecure())respond(['error'=>'HTTPS obrigatório.'],400);
-  if((int)($_SERVER['CONTENT_LENGTH']??0)>3*1024*1024)respond(['error'=>'Solicitação muito grande.'],413);
-  try{$url=cloudinaryUploadSpacePhoto($_FILES['photo']??[],$uid);respond(['url'=>$url],201);}
-  catch(InvalidArgumentException $e){respond(['error'=>$e->getMessage()],422);}
-  catch(Throwable $e){error_log('Encontro Cloudinary upload: '.get_class($e));respond(['error'=>'Upload de fotos indisponível. Verifique a configuração do armazenamento de imagens.'],503);}
- }
  $pdo=database();
  $q=$pdo->prepare('INSERT INTO users(firebase_uid,email) VALUES (?,?) ON DUPLICATE KEY UPDATE email=VALUES(email)');$q->execute([$uid,$email]);
  $q=$pdo->prepare('SELECT id FROM users WHERE firebase_uid=?');$q->execute([$uid]);$userId=(int)$q->fetchColumn();
@@ -210,6 +203,13 @@ try {
   respond(['accepted'=>true,'terms_version'=>$consentRequirements['terms_version'],'privacy_version'=>$consentRequirements['privacy_version'],'accepted_at'=>$acceptedAt]);
  }
  if(!accountConsentIsCurrent($pdo,$userId,$consentRequirements))respond(['error'=>'Para continuar, confira e aceite a versão vigente dos Termos de Uso e da Política de Privacidade.','code'=>'ACCOUNT_CONSENT_REQUIRED'],403);
+ if($action==='upload-space-photo'){
+  if(!requestIsSecure())respond(['error'=>'HTTPS obrigatório.'],400);
+  if((int)($_SERVER['CONTENT_LENGTH']??0)>3*1024*1024)respond(['error'=>'Solicitação muito grande.'],413);
+  try{$url=cloudinaryUploadSpacePhoto($_FILES['photo']??[],$uid);respond(['url'=>$url],201);}
+  catch(InvalidArgumentException $e){respond(['error'=>$e->getMessage()],422);}
+  catch(Throwable $e){error_log('Encontro Cloudinary upload: '.get_class($e));respond(['error'=>'Upload de fotos indisponível. Verifique a configuração do armazenamento de imagens.'],503);}
+ }
  $platformAdminUid=env('PLATFORM_ADMIN_FIREBASE_UID');
  $isPlatformAdmin=$platformAdminUid!==''&&hash_equals($platformAdminUid,(string)$uid);
  if($action==='owner-requests'){
