@@ -117,6 +117,29 @@ if ($updateStatus !== 201 || !is_array($updated) || (int)$updated['id'] !== $ids
     failTest('Owner A could not update its own space: HTTP ' . $updateStatus . ' ' . $updateRaw);
 }
 
+$bookingIds = [];
+foreach ([$ids[1], $ids[2]] as $spaceId) {
+    $booking = [
+        'space_id' => $spaceId,
+        'check_in' => '2030-11-15T09:00',
+        'check_out' => '2030-11-16T18:00',
+        'plan' => 'daily',
+        'contact_name' => 'Cliente de teste',
+        'phone' => '16999999999',
+        'guests' => 10,
+        'message' => 'Reserva sintética em banco descartável para validar calendários independentes.',
+        'terms_accepted' => true,
+    ];
+    [$bookingStatus, $bookingResponse, $bookingRaw] = apiRequest($base, 'reserve', 'isolated-http-test-token', 'POST', $booking);
+    if ($bookingStatus !== 201 || !is_array($bookingResponse) || empty($bookingResponse['reservation_id']) || empty($bookingResponse['checkout_url'])) {
+        failTest('Same period should be reservable in different spaces: HTTP ' . $bookingStatus . ' ' . $bookingRaw);
+    }
+    $bookingIds[] = (string)$bookingResponse['reservation_id'];
+}
+$bookingCheck = $pdo->prepare("SELECT COUNT(DISTINCT space_id) FROM reservations WHERE id IN (?,?) AND status='pending'");
+$bookingCheck->execute($bookingIds);
+if ((int)$bookingCheck->fetchColumn() !== 2) failTest('Reservations in different spaces were not persisted independently.');
+
 $q = $pdo->prepare('SELECT COUNT(*) FROM spaces WHERE owner_id=? AND is_demo=0');
 $q->execute([$ownerAId]);
 $realCount = (int)$q->fetchColumn();
