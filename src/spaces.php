@@ -6,7 +6,11 @@ const SPACE_AUTHORIZATION_TEXT = 'Sou responsável pelo espaço e tenho autoriza
 
 require_once __DIR__ . '/cloudinary.php';
 
-function validateSpace(array $input, ?string $ownerHash = null): array {
+function spaceOwnerPublicationState(string $ownerStatus, bool $requestedActive): int {
+    return $ownerStatus === 'approved' && $requestedActive ? 1 : 0;
+}
+
+function validateSpace(array $input, ?string $ownerHash = null, string $ownerStatus = 'pending'): array {
     $data = [];
     $labels = ['name' => 'nome', 'city' => 'cidade', 'neighborhood' => 'bairro', 'address' => 'endereço', 'description' => 'descrição', 'rules' => 'regras'];
     foreach (['name' => 120, 'city' => 120, 'neighborhood' => 120, 'address' => 250, 'description' => 4000, 'rules' => 4000] as $field => $max) {
@@ -92,7 +96,7 @@ function validateSpace(array $input, ?string $ownerHash = null): array {
     if (($input['owner_authorized'] ?? false) !== true) {
         throw new InvalidArgumentException('Confirme que você é responsável pelo espaço e tem autorização para publicar as informações e imagens.');
     }
-    $data['active'] = (int) $input['active'];
+    $data['active'] = spaceOwnerPublicationState($ownerStatus, $input['active']);
     $data['owner_authorized_at'] = gmdate('Y-m-d H:i:s');
     $data['owner_authorization_version'] = SPACE_AUTHORIZATION_VERSION;
     $data['owner_authorization_snapshot'] = SPACE_AUTHORIZATION_TEXT;
