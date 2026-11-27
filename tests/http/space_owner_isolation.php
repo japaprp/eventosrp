@@ -31,8 +31,10 @@ $chatRules = $rules['rules']['chats']['$reservationId']['messages'] ?? null;
 if (!is_array($chatRules)
     || !str_contains((string)($chatRules['.read'] ?? ''), 'members')
     || !str_contains((string)($chatRules['$messageId']['.write'] ?? ''), '!data.exists()')
-    || !str_contains((string)($chatRules['$messageId']['.validate'] ?? ''), 'auth.uid')) {
-    failTest('Firebase chat rules must enforce member-only reads, append-only writes and authenticated sender validation.');
+    || !str_contains((string)($chatRules['$messageId']['sender']['.validate'] ?? ''), 'auth.uid')
+    || !str_contains((string)($chatRules['$messageId']['text']['.validate'] ?? ''), '1000')
+    || ($chatRules['$messageId']['$other']['.validate'] ?? true) !== false) {
+    failTest('Firebase chat rules must enforce member-only reads, append-only writes, authenticated senders, bounded text and a closed message schema.');
 }
 
 $base = rtrim(getenv('HTTP_TEST_BASE_URL') ?: 'http://127.0.0.1:8088', '/');
