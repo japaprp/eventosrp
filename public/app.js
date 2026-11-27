@@ -90,6 +90,7 @@ function login(after) {
       const provider=new sdk.GoogleAuthProvider();
       const result=await sdk.signInWithPopup(auth,provider);
       setAuthenticatedUser(result.user);
+      if(!await ensureAccountConsent())throw new Error('O acesso às funções da plataforma depende da confirmação dos documentos vigentes.');
       profile={name:user.displayName||'',phone:''};
       try{await api('profile',{method:'POST',body:JSON.stringify(profile)})}
       catch{toast('Conectado via Google. Complete seus dados de contato na reserva.')}
@@ -116,21 +117,70 @@ function login(after) {
     button.disabled=true;$('#signup').disabled=true;$('#google-signin').disabled=true;
     try{
       const result=await (creating?sdk.createUserWithEmailAndPassword:sdk.signInWithEmailAndPassword)(auth,$('#email').value.trim(),$('#password').value);setAuthenticatedUser(result.user);
+      if(!await ensureAccountConsent())throw new Error('O acesso às funções da plataforma depende da confirmação dos documentos vigentes.');
       if(creating){
         profile={name,phone};
         try{await sdk.updateProfile(user,{displayName:name});await api('profile',{method:'POST',body:JSON.stringify(profile)})}
-        catch{toast('Conta criada. Confirme seus dados de contato na reserva.')}
+        catch{toast('Conta criada. Complete seus dados de contato na reserva.')}
       }else{try{profile=await api('profile')}catch{profile={name:user.displayName||'',phone:''}}}
       $('#modal').close();toast(creating?'Conta criada. Vamos planejar seu evento!':'Você entrou na sua conta.');after?.();
     }catch(e){
       const messages={'auth/email-already-in-use':'Este e-mail já tem uma conta. Use Entrar ou recupere a senha.','auth/weak-password':'Escolha uma senha mais forte.','auth/invalid-email':'Confirme o e-mail.','auth/user-not-found':'Conta não encontrada.','auth/wrong-password':'Senha incorreta.'};
-      error.textContent=messages[e.code]||'Não foi possível acessar. Verifique os dados ou tente novamente.';button.disabled=false;$('#signup').disabled=false;$('#google-signin').disabled=false;
+      error.textContent=(e?.message&&e.message!=='')?e.message:(messages[e.code]||'Não foi possível acessar. Verifique os dados ou tente novamente.');button.disabled=false;$('#signup').disabled=false;$('#google-signin').disabled=false;
     }
   };
   $('#reset').onclick=()=>passwordReset($('#email').value.trim());
 }
 function validPhone(value){return /^(?:55)?[1-9][0-9][0-9]{8,9}$/.test(value.replace(/\D/g,''))}
 
+async function ensureAccountConsent(){
+  let requirements;
+  try{
+    requirements=await api('account-consent-requirements');
+    const status=await api('account-consent-status');
+    if(status.accepted===true)return true;
+  }catch(error){
+    throw new Error(error?.message||'Não foi possível verificar os documentos obrigatórios da conta.');
+  }
+  return await new Promise((resolve,reject)=>{
+    modal(`<span class="eyebrow">SEGURANÇA DA SUA CONTA</span><h2>Confirme os documentos vigentes.</h2>
+      <p>Para usar as funções da plataforma, confira os documentos oficiais nas versões informadas abaixo.</p>
+      <p><a href="${escapeHtml(requirements.terms_url)}" target="_blank" rel="noopener noreferrer">Ler Termos de Uso — ${escapeHtml(requirements.terms_version)}</a></p>
+      <p><a href="${escapeHtml(requirements.privacy_url)}" target="_blank" rel="noopener noreferrer">Ler Política de Privacidade — ${escapeHtml(requirements.privacy_version)}</a></p>
+      <form class="form" id="account-consent-form">
+        <label><span><input type="checkbox" id="account-consent-accepted" required style="width:auto"> Confirmo que li e aceito os Termos de Uso e a Política de Privacidade nas versões indicadas.</span></label>
+        <div class="form-error" role="alert"></div>
+        <button class="primary" type="submit" id="account-consent-submit">Confirmar e continuar</button>
+        <button class="detail-button" type="button" id="account-consent-cancel">Agora não</button>
+      </form>`);
+    const dialog=$('#modal');
+    const form=$('#account-consent-form');
+    let settled=false;
+    const finish=(value)=>{if(settled)return;settled=true;resolve(value)};
+    dialog.addEventListener('close',()=>finish(false),{once:true});
+    $('#account-consent-cancel').onclick=()=>dialog.close();
+    form.onsubmit=async event=>{
+      event.preventDefault();
+      const checkbox=$('#account-consent-accepted');
+      const button=$('#account-consent-submit');
+      const error=form.querySelector('.form-error');
+      if(!checkbox.checked){error.textContent='Confirme o aceite após ler os documentos.';return}
+      button.disabled=true;
+      try{
+        await api('account-consent',{method:'POST',body:JSON.stringify({
+          accepted:true,
+          terms_version:requirements.terms_version,
+          privacy_version:requirements.privacy_version
+        })});
+        dialog.close();
+        finish(true);
+      }catch(e){
+        error.textContent=e?.message||'Não foi possível registrar seu aceite. Tente novamente.';
+        button.disabled=false;
+      }
+    };
+  });
+}
 async function api(path,options={}){
   if(!user)throw new Error('Entre na sua conta para continuar.');
   const token=await user.getIdToken();
