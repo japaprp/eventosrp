@@ -1,41 +1,51 @@
 # Checklist técnico de entrega — Reservas RP
 
-## Bloqueadores de abertura
+Atualizado em 27/11/2026. Este documento distingue testes automatizados do pacote e homologação real de produção.
 
-1. Recuperar o MySQL usado pelo Render. O endpoint de catálogo apresentou HTTP 503. GET /ready.php foi criado para executar SELECT 1; confirmar apenas o host/porta (sem senha) do DB_HOST no Render e comparar com o provedor realmente ativo. GET /health.php verifica somente o processo PHP.
-2. O serviço MySQL Railway consultado está sem deployment ativo. A porta TCP pública aceita conexão, mas não envia handshake MySQL. Não redeployar sem confirmar custo e persistência do volume.
-4. Aiven não pôde ser inventariado pelo conector; se o banco atual estiver lá, verificar o aviso de encerramento da oferta gratuita em 21/12/2026. Não assumir continuidade gratuita.
-5. Antes de qualquer migração, exportar backup, calcular SHA-256 e testar restauração em banco separado. Executar `database/preflight_readonly.sql` e inspecionar o schema real antes de decidir quais migrations 002–007 faltam.
-6. Configurar Cloudinary no serviço PHP. Sem CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY e CLOUDINARY_API_SECRET, o upload não funciona. A conta Free tem 64 assets de amostra; não há assets com prefixo `eventosrp`.
-7. Configurar Firebase service account JSON em FIREBASE_CREDENTIALS_JSON ou manter caminho privado válido em FIREBASE_CREDENTIALS.
-8. Validar Mercado Pago em sandbox e depois em produção. Não usar token de teste com MP_SANDBOX=false nem token live com MP_SANDBOX=true.
-9. Completar os dados da operadora e a revisão dos termos conforme LEGAL_OPERATIONS_RELEASE_CHECKLIST.md. O aceite de termos da conta ainda não é persistido pelo backend.
+## Estado confirmado
 
-## Homologação funcional
+- PR #19 está aberto, em draft, na branch `delivery/2026-11-27-production-readiness`; não foi integrado.
+- Cinco workflows associados ao HEAD atual concluíram com sucesso: `Tests`, `Isolated HTTP booking concurrency`, `MySQL payment lifecycle race tests`, `MySQL booking concurrency integration` e `Reservas RP checks`.
+- Serviço PHP `eventosrp` está online no Railway, conectado à branch `main`, commit implantado `c1431ba4327bb3f35419a3328ea2bcdb7d966a1c`. Esse deployment não contém o PR #19.
+- Serviço MySQL está online; o deployment confirmou MySQL 8.4.13 e log `ready for connections`. O volume original de 500 MB continua anexado em `/var/lib/mysql`.
+- O start command foi ajustado para buffer pool 128 MiB e máximo de 20 conexões.
+- O proxy TCP está ativo em `switchyard.proxy.rlwy.net:48927`, destino porta 3306.
+- As ferramentas de banco Railway não estão habilitadas para esta conta. Handshake autenticado, `SELECT 1`, inventário SQL, backup lógico e restauração de teste permanecem BLOCKED/NOT RUN.
+- Backup manual de volume Railway exigiria plano Pro; não foi contratado nem autorizado.
+- Não houve teste HTTP externo confirmado nesta sessão. A URL pública e o fluxo real de reservas continuam NOT RUN.
+- O ambiente atual da aplicação não tem variáveis `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET`; pagamento real e webhook não estão homologados.
+- As variáveis privadas Cloudinary ainda precisam ser configuradas no ambiente que receberá o PR. Firebase também precisa de teste real com contas controladas.
+- Nenhuma migration foi executada no banco de produção.
 
-- [ ] Após publicar o pacote, configurar o health check do Render para /health.php. Não usar /ready.php como health check de reinício; usar /ready.php para diagnóstico do banco. No `main` atual, esses endpoints ainda não existem e o caminho cai no fallback HTML.
+## Próximas ações — ordem de execução
 
-- [ ] Cadastro real de cliente e login.
-- [ ] Cadastro real de proprietário.
-- [ ] Um proprietário cria três espaços independentes.
-- [ ] Um proprietário edita e pausa apenas seus espaços.
-- [ ] Outro proprietário não consegue ler ou alterar esses espaços.
-- [ ] Upload de fotos e rejeição de URL Cloudinary de outro proprietário.
-- [ ] Catálogo público mostra somente espaços ativos e não demonstrativos.
-- [ ] Cliente solicita reserva e aceita condições.
-- [ ] Servidor recalcula preço e valida horários/capacidade.
-- [ ] Duas solicitações concorrentes não ocupam o mesmo intervalo.
-- [ ] Checkout e webhook são confirmados no Mercado Pago sandbox.
-- [ ] Expiração de pending e limpeza segura de creating parado são testadas em sandbox.
-- [ ] Pagamento rejeitado, cancelado, aprovado, reembolsado e contestado são tratados sem liberar indevidamente a data.
-- [ ] Workflow de conciliação executa com segredo válido.
-- [ ] Atendimento manual e contingência documentados.
+1. [ ] Confirmar por caminho alternativo autorizado uma conexão MySQL autenticada, sem compartilhar credenciais no chat.
+2. [ ] Executar `database/preflight_readonly.sql` e salvar evidência sem dados pessoais.
+3. [ ] Gerar backup lógico, calcular SHA-256 e testar restauração em banco separado.
+4. [ ] Comparar schema real com migrations 002–007; aplicar somente as migrations realmente pendentes, após backup restaurável e autorização operacional.
+5. [ ] Homologar o endpoint `/health.php` e `/ready.php` após publicação autorizada do PR.
+6. [ ] Configurar e testar Firebase com duas contas controladas.
+7. [ ] Configurar Cloudinary e testar upload, validação e isolamento entre proprietários.
+8. [ ] Cadastrar um espaço real com autorização, endereço, capacidade, preço, horários, regras e fotos reais.
+9. [ ] Validar cadastro, catálogo, autorização, reservas e concorrência em ambiente de homologação.
+10. [ ] Revisar os dados da operadora, termos, privacidade, cancelamentos e atendimento.
+11. [ ] Deixar Mercado Pago, credenciais reais, webhook e homologação de pagamento para a etapa final, conforme decisão do responsável.
 
-## Decisão de release
+## Bloqueios que não podem ser mascarados
 
-**NO-GO enquanto MySQL/API estiverem indisponíveis.** O CI aprovado comprova os testes do código, não a operação em produção. Não declarar a entrega concluída até que os itens de bloqueio e os smoke tests acima tenham evidência.
+- MySQL online e log `ready for connections` não provam autenticação nem schema válido.
+- Sem backup restaurável, migrations em banco existente permanecem bloqueadas.
+- O serviço online está na branch `main`; o PR #19 não está em produção. Não fazer merge ou deploy sem autorização específica.
+- Não foi confirmada resposta HTTP pública nesta sessão; logs sem exceções não substituem smoke test.
+- Sem Cloudinary configurado, upload real não está disponível.
+- Sem teste Firebase real, autenticação ponta a ponta não está homologada.
+- Pagamentos e webhooks reais estão intencionalmente reservados para a última etapa.
+- Termos e privacidade são provisórios e não podem ser apresentados como documentos jurídicos finais sem dados reais da operadora e revisão apropriada.
 
+## Critério de aceite técnico
+
+A entrega técnica só pode ser marcada como concluída quando os fluxos funcionais forem testados no ambiente destinado ao cliente, com evidência de API, banco, autenticação, armazenamento, isolamento entre proprietários e reservas concorrentes. Os testes CI aprovados são evidência do código em ambiente isolado, não prova de funcionamento da produção.
 
 ## Build reproduzível
 
-- [ ] Gerar e versionar composer.lock em ambiente PHP/Composer controlado. Hoje o arquivo não está presente, então composer install resolve versões compatíveis no momento do build e a reprodução exata do ambiente ainda não está garantida.
+- [ ] Confirmar e versionar `composer.lock` em ambiente PHP/Composer controlado. Sem lockfile, `composer install` pode resolver versões diferentes em execuções futuras.
