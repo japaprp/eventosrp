@@ -26,6 +26,11 @@ function request(string $url, string $method = 'GET', ?array $body = null): arra
 }
 
 $base = rtrim(getenv('HTTP_TEST_BASE_URL') ?: 'http://127.0.0.1:8088', '/');
+[$registrationStatus, $registrationBody] = request($base . '/api.php?action=account-consent-registration-status');
+$registration = json_decode($registrationBody, true);
+if ($registrationStatus !== 200 || !is_array($registration) || ($registration['available'] ?? false) !== true) {
+    failTest('The registration preflight must report availability only when valid document configuration exists: ' . $registrationBody);
+}
 [$requirementsStatus, $requirementsBody] = request($base . '/api.php?action=account-consent-requirements');
 $requirements = json_decode($requirementsBody, true);
 if ($requirementsStatus !== 200 || !is_array($requirements) || empty($requirements['terms_version']) || empty($requirements['privacy_version'])) {
