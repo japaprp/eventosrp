@@ -187,11 +187,11 @@ try {
  $header=$_SERVER['HTTP_AUTHORIZATION']??'';if(!preg_match('/^Bearer (.+)$/',$header,$match))respond(['error'=>'Entre na sua conta.'],401);
  try{$token=firebase()->createAuth()->verifyIdToken($match[1],true);}catch(Throwable $e){respond(['error'=>'Sessão inválida. Entre novamente.'],401);}
  $uid=$token->claims()->get('sub');$email=$token->claims()->get('email','');
+ $consentRequirements=accountConsentRequirements();
+ if($consentRequirements===null)respond(['error'=>'Cadastro e operações autenticadas temporariamente indisponíveis enquanto os documentos oficiais não estiverem configurados.','code'=>'ACCOUNT_CONSENT_CONFIGURATION_UNAVAILABLE'],503);
  $pdo=database();
  $q=$pdo->prepare('INSERT INTO users(firebase_uid,email) VALUES (?,?) ON DUPLICATE KEY UPDATE email=VALUES(email)');$q->execute([$uid,$email]);
  $q=$pdo->prepare('SELECT id FROM users WHERE firebase_uid=?');$q->execute([$uid]);$userId=(int)$q->fetchColumn();
- $consentRequirements=accountConsentRequirements();
- if($consentRequirements===null)respond(['error'=>'Cadastro e operações autenticadas temporariamente indisponíveis enquanto os documentos oficiais não estiverem configurados.','code'=>'ACCOUNT_CONSENT_CONFIGURATION_UNAVAILABLE'],503);
  if($action==='account-consent-requirements')respond($consentRequirements);
  if($action==='account-consent-status')respond(['accepted'=>accountConsentIsCurrent($pdo,$userId,$consentRequirements)]);
  if($action==='account-consent'){
