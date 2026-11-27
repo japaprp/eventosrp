@@ -28,6 +28,7 @@ Não reimporte o schema em banco existente. Faça backup e aplique, uma única v
 
 - MySQL: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` e, quando o provedor exigir CA privada, `DB_SSL_CA`.
 - Firebase: `FIREBASE_CREDENTIALS_JSON` (JSON completo da conta de serviço) ou `FIREBASE_CREDENTIALS` (caminho privado para o arquivo JSON), além das variáveis públicas `FIREBASE_*`.
+- Firebase Realtime Database: as regras de chat estão versionadas em `database.rules.json`. Depois de confirmar o projeto Firebase correto do Reservas RP, revisar e publicar somente as regras com `firebase deploy --only database --project <ID_DO_PROJETO_FIREBASE_RESERVAS_RP>`. Não reutilizar o projeto Firebase de outro produto. O deploy das regras ainda precisa de homologação no Firebase Emulator e no projeto real.
 - Mercado Pago: `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`, `MP_SANDBOX`, `APP_URL`.
 - Cloudinary: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`.
 - Conciliação agendada: `RESERVATION_RECONCILE_SECRET` (mínimo 32 caracteres aleatórios).
