@@ -150,6 +150,16 @@ if ($updateStatus !== 201 || !is_array($updated) || (int)$updated['id'] !== $ids
     failTest('Owner A could not update its own space: HTTP ' . $updateStatus . ' ' . $updateRaw);
 }
 
+foreach (array_slice($ids, 1) as $index => $spaceId) {
+    $approvedSpace = $authorized;
+    $approvedSpace['id'] = $spaceId;
+    $approvedSpace['name'] = 'Espaço aprovado A' . ($index + 2);
+    [$approvedStatus, $approvedResult, $approvedRaw] = apiRequest($base, 'save-space', $ownerA, 'POST', $approvedSpace);
+    if ($approvedStatus !== 201 || !is_array($approvedResult) || ($approvedResult['active'] ?? false) !== true) {
+        failTest('An approved owner must be able to publish its own space: HTTP ' . $approvedStatus . ' ' . $approvedRaw);
+    }
+}
+
 $bookingIds = [];
 foreach ([$ids[1], $ids[2]] as $spaceId) {
     $booking = [
