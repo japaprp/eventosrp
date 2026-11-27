@@ -23,7 +23,7 @@ function accountConsentRequirements(): ?array {
     $validVersion = static fn(string $value): bool =>
         preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/D', $value) === 1;
     $validUrl = static function (string $value): bool {
-        if ($value === '' || strlen($value) > 2048) return false;
+        if ($value === '' || strlen($value) > 2048 || filter_var($value, FILTER_VALIDATE_URL) === false) return false;
         $parts = parse_url($value);
         return is_array($parts)
             && strtolower((string)($parts['scheme'] ?? '')) === 'https'
