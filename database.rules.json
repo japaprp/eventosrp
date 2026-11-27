@@ -1,0 +1,17 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "chats": {
+      "$reservationId": {
+        "messages": {
+          ".read": "auth != null && root.child('chats').child($reservationId).child('members').child(auth.uid).val() === true",
+          "$messageId": {
+            ".write": "auth != null && !data.exists() && root.child('chats').child($reservationId).child('members').child(auth.uid).val() === true",
+            ".validate": "newData.hasChildren(['sender', 'text', 'createdAt']) && newData.getChildrenCount() === 3 && newData.child('sender').val() === auth.uid && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 1000 && newData.child('createdAt').isNumber()"
+          }
+        }
+      }
+    }
+  }
+}
