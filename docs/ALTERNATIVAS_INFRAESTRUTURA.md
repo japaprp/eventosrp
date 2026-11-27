@@ -10,7 +10,7 @@ A prioridade é recuperar o banco original e preservar os registros reais. Não 
 
 | Provedor | Situação | Compatibilidade | Decisão |
 |---|---|---|---|
-| Railway MySQL original | Serviço e volume existem; deployment iniciou MySQL 8.4.13 e registrou `ready for connections`, depois recebeu shutdown por inatividade; estado atual `SLEEPING`, `sleepApplication=true` | MySQL nativo; volume de 500 MB montado em /var/lib/mysql; TCP Proxy ativo | Preservar volume; validar plano/custo e política de sleep; conectar, exportar e testar restauração antes de migrations |
+| Railway MySQL original | Serviço e volume existem; deployment iniciou MySQL 8.4.13 e registrou `ready for connections`, depois recebeu shutdown por inatividade; estado atual `SLEEPING`, `sleepApplication=true` (Serverless; acorda na próxima conexão) | MySQL nativo; volume de 500 MB montado em /var/lib/mysql; TCP Proxy ativo | Preservar volume; validar cold start e plano/custo; conectar, exportar e testar restauração antes de migrations |
 | Aiven MySQL Free | Inventário da conta não pôde ser confirmado; encerramento do plano Free anunciado para 21/12/2026 | MySQL nativo | Se for o banco atual, exportar antes do encerramento; não usar como destino permanente gratuito |
 | TiDB Cloud Starter | Plano gratuito disponível, sujeito a quotas | Protocolo MySQL e grande parte da sintaxe MySQL 8 | Melhor candidato gratuito para migração controlada, ainda não homologado pelo Reservas RP |
 | PlanetScale | Não oferece plano gratuito | MySQL-compatible/Vitess, pago | Descartado para a exigência de custo zero |
@@ -50,7 +50,7 @@ O Cloudinary é o caminho de menor mudança porque a integração assinada já f
 
 ## Aplicação e pagamentos
 
-- Railway atual: o serviço PHP está na branch `main` e o deployment está `SLEEPING` com `sleepApplication=true`; MySQL também está `SLEEPING`. A operação comercial exige confirmar disponibilidade contínua, custos e comportamento de cold start antes de desabilitar sleep. O domínio Railway existe, mas smoke test externo ainda não foi concluído.
+- Railway atual: o serviço PHP está na branch `main` e o deployment está `SLEEPING` com `sleepApplication=true`; MySQL também está `SLEEPING`. O modo Serverless acorda na próxima requisição e reduz consumo em repouso; o primeiro acesso pode ter cold start/502. Para uma operação comercial sem cold start, avaliar manter sempre ativo e o custo antes de desabilitar Serverless. O domínio Railway existe, mas smoke test externo ainda não foi concluído.
 - Stripe: a conta conectada foi identificada em modo de teste; não substituir o Mercado Pago nem prometer split/repasse.
 - Mercado Pago: manter a integração atual, homologar primeiro em sandbox e documentar que reembolso, chargeback e repasse aos proprietários continuam manuais.
 - GitHub Actions: usar testes e conciliação agendada somente depois de configurar segredos privados e validar o endpoint.
