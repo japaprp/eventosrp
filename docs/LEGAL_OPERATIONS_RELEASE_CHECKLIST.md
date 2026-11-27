@@ -14,7 +14,9 @@ Este documento é uma lista operacional. Não substitui parecer jurídico nem co
 
 - [ ] Termos de uso completos para clientes.
 - [ ] Termos de adesão para proprietários/anfitriões.
-- [ ] Política de privacidade LGPD com controlador, operadores, finalidades, bases legais, direitos, retenção e canal do titular.
+- [ ] Política de privacidade LGPD com controlador, operadores, finalidades, bases legais, direitos, retenção, transferências internacionais e canal do titular.
+- [ ] Corrigir o texto provisório atual: ele menciona Firebase e Mercado Pago, mas não descreve Cloudinary nem hospedagem Render/Railway; também promete exclusão sob solicitação sem um fluxo operacional definido.
+- [ ] Persistir a aceitação dos termos/privacidade da conta (versão, data/hora e snapshot). Hoje o checkbox de cadastro é validado pelo navegador, mas não é enviado nem persistido pelo backend; o login Google também não comprova esse aceite.
 - [ ] Política de cookies e tecnologias de terceiros, se aplicável.
 - [ ] Regras de cancelamento, reembolso, no-show, alterações e disputas.
 - [ ] Explicação clara sobre quando uma reserva fica confirmada e quando o pagamento é capturado.
@@ -37,6 +39,7 @@ Este documento é uma lista operacional. Não substitui parecer jurídico nem co
 - [ ] Enviar fotos reais autorizadas pelo proprietário.
 - [ ] Confirmar que não há registros demonstrativos ativos no catálogo.
 - [ ] Testar cadastro de cliente e proprietário com contas controladas pelo responsável do projeto.
+- [ ] Confirmar que o cadastro Firebase, perfil MySQL, aceite de termos da conta e recuperação de senha funcionam ponta a ponta.
 
 ## Evidência técnica mínima antes de abrir
 
@@ -52,9 +55,9 @@ Este documento é uma lista operacional. Não substitui parecer jurídico nem co
 
 ## Limites já conhecidos
 
-- A conexão MySQL da API apresentou HTTP 503 e erro MySQL server has gone away.
-- O serviço Render está no plano Free; não deve ser tratado como infraestrutura de produção com SLA.
-- O Cloudinary precisa de três variáveis privadas no serviço PHP.
+- A conexão MySQL da API apresentou HTTP 503 e erro MySQL server has gone away. O serviço MySQL original e o volume de 500 MB continuam no Railway, mas não há deployment ativo; o comando atual usa buffer pool de 1 GiB e foi preparado um ajuste staged para 128 MiB, sem deploy.
+- O serviço Render está no plano Free; não deve ser tratado como infraestrutura de produção com SLA. O health check do Render ainda está vazio; os novos endpoints `health.php` e `ready.php` só serão válidos após a publicação do código.
+- O Cloudinary precisa de três variáveis privadas no serviço PHP; a conta Free tem 64 assets de amostra e nenhum asset com prefixo `eventosrp` foi encontrado. O upload ainda não foi homologado.
 - A conciliação agendada precisa de segredo no Render e no GitHub Actions.
 - Não há split, comissão, repasse nem reembolso automático.
 - O snapshot de aceite registra versão, data/hora, condições do espaço, período e preço; não é assinatura eletrônica formal.
