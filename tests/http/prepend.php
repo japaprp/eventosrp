@@ -39,6 +39,7 @@ final class EventosRpHttpTestAuth {
             'isolated-http-test-token' => ['eventosrp-http-test-user', 'http-test@example.invalid'],
             'isolated-http-test-owner-a' => ['eventosrp-http-test-owner-a', 'owner-a@example.invalid'],
             'isolated-http-test-owner-b' => ['eventosrp-http-test-owner-b', 'owner-b@example.invalid'],
+            'isolated-http-test-admin' => ['eventosrp-http-test-admin', 'platform-admin@example.invalid'],
         ];
         if (!isset($users[$token])) throw new RuntimeException('Invalid isolated test token.');
         return new EventosRpHttpTestToken($users[$token][0], $users[$token][1]);
