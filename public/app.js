@@ -151,8 +151,8 @@ function reservation(s) {
       <div class="form-row"><label>Número de convidados<input type="number" id="guests" min="1" max="${s.capacity}" required></label><label>Celular com DDD<input type="tel" id="phone" autocomplete="tel" maxlength="25" placeholder="(16) 99999-9999" required></label></div>
       <label>Conte sobre seu evento<textarea id="message" maxlength="2000" required></textarea></label>
       <label><span><input type="checkbox" id="accept-reservation-terms" required style="width:auto"> Li e aceito as condições desta reserva e as regras do espaço.</span></label>
-      <p class="notice">Total estimado para a locação. O servidor confirma preço e disponibilidade antes do pagamento no Mercado Pago. Serviços adicionais devem ser acordados previamente.</p>
-      <div class="form-error" role="alert"></div><button class="primary" type="submit">Continuar para pagamento ↗</button>
+      <p class="notice">${config.paymentsEnabled?'O servidor confirma preço e disponibilidade antes do pagamento no Mercado Pago.':'O envio não gera cobrança nem confirma a locação. O proprietário analisará sua solicitação e você poderá acompanhar a resposta no painel.'} Serviços adicionais devem ser acordados previamente.</p>
+      <div class="form-error" role="alert"></div><button class="primary" type="submit">${config.paymentsEnabled?'Continuar para pagamento ↗':'Enviar solicitação ↗'}</button>
     </form>`);
   $('#contact-name').value=profile.name||user?.displayName||'';$('#phone').value=profile.phone||'';
   let changedOut=false;
@@ -185,12 +185,19 @@ function reservation(s) {
       if($('#contact-name').value.trim().length<2)throw new Error('Informe o nome do responsável.');
       button.disabled=true;
       const data=await api('reserve',{method:'POST',body:JSON.stringify({space_id:s.id,check_in:$('#check-in').value,check_out:$('#check-out').value,plan:$('#plan').value,contact_name:$('#contact-name').value.trim(),guests:Number($('#guests').value),phone:$('#phone').value.trim(),message:$('#message').value.trim(),terms_accepted:$('#accept-reservation-terms').checked})});
-      const target=new URL(data.checkout_url);if(target.protocol!=='https:'||!/(^|\.)mercadopago\.(com|com\.br)$/.test(target.hostname))throw new Error('Endereço de pagamento inválido.');location.href=data.checkout_url;
+      if(config.paymentsEnabled){
+        const target=new URL(data.checkout_url);if(target.protocol!=='https:'||!/(^|\\.)mercadopago\\.(com|com\\.br)$/.test(target.hostname))throw new Error('Endereço de pagamento inválido.');location.href=data.checkout_url;
+      }else{
+        if(data.status!=='requested'||data.checkout_url)throw new Error('O servidor retornou um estado de solicitação inesperado.');
+        modal('<h2>Solicitação enviada.</h2><p>O proprietário recebeu seu pedido. Não houve cobrança. Acompanhe a resposta em Minhas reservas e use a conversa para esclarecer os detalhes.</p><button class="primary" id="view-requests">Ver minhas solicitações</button>');
+        $('#view-requests').onclick=()=>account('reservas');
+        toast('Solicitação enviada sem cobrança.');
+      }
     }catch(err){$('.form-error').textContent=err.message;button.disabled=false}
   };
 }
 
-function reservationStatus(status,paymentStatus=null,paymentAttention='none'){if(paymentAttention==='refund_required')return 'Pagamento aprovado fora da reserva — análise de reembolso necessária';if(paymentAttention==='chargeback')return 'Pagamento contestado — atendimento necessário';if(paymentAttention==='review_required')return 'Pagamento em revisão';if(status==='pending'&&paymentStatus==='approved')return 'Pagamento aprovado — atualização da reserva em processamento';return {creating:'Em conferência — não repita o pagamento',pending:'Aguardando pagamento',approved:'Pagamento aprovado',failed:'Solicitação não concluída',cancelled:'Cancelada',expired:'Reserva expirada'}[status]||'Status em atualização'}
+function reservationStatus(status,paymentStatus=null,paymentAttention='none'){if(paymentAttention==='refund_required')return 'Pagamento aprovado fora da reserva — análise de reembolso necessária';if(paymentAttention==='chargeback')return 'Pagamento contestado — atendimento necessário';if(paymentAttention==='review_required')return 'Pagamento em revisão';if(status==='pending'&&paymentStatus==='approved')return 'Pagamento aprovado — atualização da reserva em processamento';return {creating:'Em conferência',requested:'Aguardando confirmação do proprietário',confirmed:'Reserva confirmada pelo proprietário',declined:'Solicitação recusada pelo proprietário',pending:'Aguardando pagamento',approved:'Pagamento aprovado',failed:'Solicitação não concluída',cancelled:'Cancelada',expired:'Reserva expirada'}[status]||'Status em atualização'}
 async function account(page){
   if(!user){login(()=>account(page));return}
   modal(`<h2>${page==='reservas'?'Minhas reservas':'Meu painel'}</h2><p id="account-email"></p><div id="reservation-list" role="status">Carregando...</div><button class="login" id="space-mgmt">Meus espaços ↗</button><button class="login" id="account-logout">Sair</button>`);
@@ -315,7 +322,7 @@ async function spaceManager(){
   if(received.status==='rejected')$('#host-reservations').textContent=received.reason.message;
   else{
     const box=$('#host-reservations');box.textContent=received.value.length?'':'Nenhuma reserva recebida.';
-    for(const r of received.value){const item=document.createElement('div');item.className='reservation-item';const text=document.createElement('p');text.textContent=`${r.name} · ${r.contact_name} · ${formatBookingDate(r.check_in)} · ${reservationStatus(r.status,r.payment_status,r.payment_attention)}`;item.appendChild(text);const button=document.createElement('button');button.className='detail-button';button.textContent='Ver conversa';button.onclick=()=>chat(r.id);item.appendChild(button);box.appendChild(item)}
+    for(const r of received.value){const item=document.createElement('div');item.className='reservation-item';const text=document.createElement('p');text.textContent=`${r.name} · ${r.contact_name} · ${formatBookingDate(r.check_in)} · ${reservationStatus(r.status,r.payment_status,r.payment_attention)}`;item.appendChild(text);if(r.status==='requested'){for(const decision of ['confirmed','declined']){const action=document.createElement('button');action.className=decision==='confirmed'?'primary':'detail-button';action.textContent=decision==='confirmed'?'Confirmar solicitação':'Recusar solicitação';action.onclick=async()=>{action.disabled=true;try{await api('review-reservation',{method:'POST',body:JSON.stringify({reservation_id:r.id,decision})});toast(decision==='confirmed'?'Reserva confirmada.':'Solicitação recusada.');spaceManager()}catch(error){action.disabled=false;toast(error.message)}};item.appendChild(action)}}const button=document.createElement('button');button.className='detail-button';button.textContent='Ver conversa';button.onclick=()=>chat(r.id);item.appendChild(button);box.appendChild(item)}
   }
 }
 
