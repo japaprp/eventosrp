@@ -24,13 +24,13 @@ Atualizado em 27/11/2026. Este documento distingue testes automatizados do pacot
 3. [ ] Gerar backup lógico, calcular SHA-256 e testar restauração em banco separado.
 4. [ ] Comparar schema real com migrations 002–007; aplicar somente as migrations realmente pendentes, após backup restaurável e autorização operacional.
 5. [ ] Homologar o endpoint `/health.php` e `/ready.php` após publicação autorizada do PR.
-6. [ ] Publicar e validar `database.rules.json` no projeto Firebase correto do Reservas RP; testar leitura/escrita de chat por cliente e proprietário e negar usuário externo.
-7. [ ] Configurar e testar Firebase Authentication com duas contas controladas.
+6. [ ] Confirmar o projeto Firebase correto do Reservas RP; executar Emulator e homologação real das regras `database.rules.json`, testando cliente, proprietário e usuário externo. Não publicar regras sem confirmar o projeto.
+7. [ ] Configurar `PLATFORM_ADMIN_FIREBASE_UID` no servidor com o UID exclusivo do administrador e testar a fila de aprovação; configurar e testar Firebase Authentication com duas contas controladas.
 8. [ ] Configurar Cloudinary e testar upload, validação e isolamento entre proprietários.
 9. [ ] Cadastrar um espaço real com autorização, endereço, capacidade, preço, horários, regras e fotos reais.
-10. [ ] Validar cadastro, catálogo, autorização, reservas e concorrência em ambiente de homologação.
+10. [ ] Validar cadastro, aprovação de proprietários, catálogo, solicitações sem cobrança, confirmação/recusa pelo proprietário, chat e concorrência em ambiente de homologação.
 11. [ ] Revisar os dados da operadora, termos, privacidade, cancelamentos e atendimento.
-12. [ ] Deixar Mercado Pago, credenciais reais, webhook e homologação de pagamento para a etapa final, conforme decisão do responsável.
+12. [ ] Manter `RESERVATIONS_PAYMENT_MODE=request`. Deixar Mercado Pago, credenciais reais, webhook e homologação de pagamento para a etapa final, conforme decisão do responsável.
 
 ## Bloqueios que não podem ser mascarados
 
@@ -38,7 +38,7 @@ Atualizado em 27/11/2026. Este documento distingue testes automatizados do pacot
 - Sem backup restaurável, migrations em banco existente permanecem bloqueadas.
 - O serviço está configurado na branch `main`, mas atualmente `SLEEPING`; o PR #19 não está em produção. Não fazer merge ou deploy sem autorização específica.
 - Não foi confirmada resposta HTTP pública nesta sessão; logs sem exceções não substituem smoke test.
-- Sem Cloudinary configurado, upload real não está disponível.
+- Sem Cloudinary configurado, upload real não está disponível. Sem `PLATFORM_ADMIN_FIREBASE_UID`, a aprovação de proprietários permanece fechada por segurança.
 - Sem teste Firebase real, autenticação ponta a ponta não está homologada. As regras de chat estão versionadas, mas Emulator e publicação no projeto correto ainda são NOT RUN.
 - Pagamentos e webhooks reais estão intencionalmente reservados para a última etapa.
 - Termos e privacidade são provisórios e não podem ser apresentados como documentos jurídicos finais sem dados reais da operadora e revisão apropriada. O aceite do cadastro ainda não é persistido no backend e o fluxo Google não registra esse aceite.
