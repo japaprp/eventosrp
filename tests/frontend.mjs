@@ -72,7 +72,7 @@ assert.equal(vm.runInContext("reservationStatus('requested')",context),'Aguardan
 assert.equal(vm.runInContext("reservationStatus('confirmed')",context),'Reserva confirmada pelo proprietário');
 assert.equal(vm.runInContext("reservationStatus('declined')",context),'Solicitação recusada pelo proprietário');
 
-assert.equal(vm.runInContext("reservationStatus('creating')",context),'Em conferência — não repita o pagamento');assert.equal(vm.runInContext("reservationStatus('pending','approved','none')",context),'Pagamento aprovado — atualização da reserva em processamento');assert.equal(vm.runInContext("reservationStatus('pending','rejected','refund_required')",context),'Pagamento aprovado fora da reserva — análise de reembolso necessária');
+assert.equal(vm.runInContext("reservationStatus('creating')",context),'Em conferência');assert.equal(vm.runInContext("reservationStatus('pending','approved','none')",context),'Pagamento aprovado — atualização da reserva em processamento');assert.equal(vm.runInContext("reservationStatus('pending','rejected','refund_required')",context),'Pagamento aprovado fora da reserva — análise de reembolso necessária');
 let capturedPayload=null;
 context.capturePayload=value=>{capturedPayload=JSON.parse(JSON.stringify(value))};
 context.document.querySelectorAll=selector=>selector==='[data-space-event]:checked'?[{value:'Aniversário'}]:[];
