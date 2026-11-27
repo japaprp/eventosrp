@@ -18,7 +18,7 @@ try{
  for(const width of [390,1280]){
   const page=await browser.newPage({viewport:{width,height:900}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  let saved=null,reserve=null,chatMessage=null,failReserve=false;
+  let saved=null,reserve=null,chatMessage=null,failReserve=false,catalogueAttempts=0,simulateCatalogueColdStart=true,catalogueStatuses=[];
   await page.route('**/*',async route=>{
    const url=new URL(route.request().url());
    if(url.hostname==='www.gstatic.com'){
@@ -29,7 +29,12 @@ try{
    if(url.pathname==='/config.php')return route.fulfill({json:{firebase:{apiKey:'test-key',projectId:'test',databaseURL:'https://example.test'}}});
    if(url.pathname==='/api.php'){
     const action=url.searchParams.get('action');
-    if(action==='spaces')return route.fulfill({json:[space]});
+    if(action==='spaces'){
+      catalogueAttempts++;
+      if(simulateCatalogueColdStart){simulateCatalogueColdStart=false;catalogueStatuses.push(503);return route.fulfill({status:503,json:{error:'Serviço temporariamente indisponível.'}})}
+      catalogueStatuses.push(200);
+      return route.fulfill({json:[space]});
+     }
     if(action==='my-spaces')return route.fulfill({json:[space]});
     if(action==='host-reservations')return route.fulfill({json:[]});
     if(action==='reservations')return route.fulfill({json:[{id:'abcdef1234567890abcdef1234567890',name:space.name,check_in:'2030-01-04 09:00:00',check_out:'2030-01-05 09:00:00',total:'1800.00',status:'approved'}]});
@@ -42,7 +47,7 @@ try{
    return route.continue();
   });
   await page.goto(origin);
-  await page.locator('#count').filter({hasText:'1 espaço encontrado'}).waitFor();checks++;
+  await page.locator('#count').filter({hasText:'1 espaço encontrado'}).waitFor();if(width===390){assert.deepEqual(catalogueStatuses,[503,200]);assert.equal(catalogueAttempts,2);checks++}checks++;
   await page.locator('#list-space').click();await page.locator('#new-space').click();
   assert.equal(await page.locator('#space-photos').getAttribute('type'),'file');checks++;
   await page.locator('#space-name').fill('Chácara de teste');await page.locator('#space-city').fill('Ribeirão Preto');await page.locator('#space-address').fill('Rua de teste, 1');await page.locator('#space-type').selectOption({label:'Salão'});await page.locator('#space-capacity').fill('150');await page.locator('#space-description').fill('Espaço para eventos de teste');await page.locator('#space-price').fill('1800.50');await page.locator('#space-in').fill('09:00');await page.locator('#space-out').fill('09:00');await page.locator('[data-space-event]').first().check();

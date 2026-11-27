@@ -247,16 +247,39 @@ function passwordReset(email='') {
     catch{$('.form-error').textContent='Não foi possível enviar o link. Confira o e-mail e tente novamente.';button.disabled=false}
   };
 }
+const catalogueRetryDelays = [1000, 2000, 3000];
+async function fetchCatalogueData(request) {
+  let data;
+  for (let attempt = 0; attempt <= catalogueRetryDelays.length; attempt++) {
+    if (request !== catalogueRequest) return null;
+    let retry = false;
+    try {
+      const response = await fetch('api.php?action=spaces');
+      if (!response.ok) {
+        if ([502, 503, 504].includes(response.status) && attempt < catalogueRetryDelays.length) retry = true;
+        else throw new Error('Catálogo indisponível');
+      } else {
+        data = await response.json();
+        break;
+      }
+    } catch (error) {
+      if (request !== catalogueRequest) return null;
+      if (error instanceof TypeError && attempt < catalogueRetryDelays.length) retry = true;
+      else throw error;
+    }
+    if (!retry) throw new Error('Catálogo indisponível');
+    await new Promise(resolve => setTimeout(resolve, catalogueRetryDelays[attempt]));
+  }
+  if (!Array.isArray(data)) throw new Error('Catálogo inválido');
+  return data;
+}
 async function refreshCatalogue() {
   const request = ++catalogueRequest;
   catalogueStatus = 'loading';
   render();
   try {
-    const response = await fetch('api.php?action=spaces');
-    if (!response.ok) throw new Error('Catálogo indisponível');
-    const data = await response.json();
-    if (!Array.isArray(data)) throw new Error('Catálogo inválido');
-    if (request !== catalogueRequest) return;
+    const data = await fetchCatalogueData(request);
+    if (request !== catalogueRequest || !data) return;
     spaces = data.map(space => ({
       ...space,
       description: space.description || '',
