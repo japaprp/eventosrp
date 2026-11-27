@@ -141,6 +141,11 @@ function paymentLifecycleReconcileOverlappingHolds(PDO $pdo, int $spaceId, strin
 
 try {
  $action=$_GET['action']??'';$method=$_SERVER['REQUEST_METHOD'];
+ if($action==='account-consent-registration-status'){
+  if($method!=='GET')respond(['error'=>'Método não permitido.'],405);
+  if(accountConsentRequirements()===null)respond(['error'=>'Cadastro temporariamente indisponível enquanto os documentos oficiais não estiverem configurados.','code'=>'ACCOUNT_CONSENT_CONFIGURATION_UNAVAILABLE'],503);
+  respond(['available'=>true]);
+ }
  if($action==='spaces'&&$method==='GET'){$rows=database()->query("SELECT * FROM spaces WHERE active=1 AND is_demo=0 AND (owner_id IS NULL OR owner_id IN (SELECT id FROM users WHERE owner_status='approved')) ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);respond(array_map('publicSpace',$rows));}
  if($action==='webhook') {
   if(env('RESERVATIONS_PAYMENT_MODE','request')!=='payment')respond(['error'=>'Pagamentos estão desativados.'],503);
