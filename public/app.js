@@ -115,6 +115,11 @@ function login(after) {
     if(creating&&(name.length<2||!validPhone(phone))){error.textContent='Informe seu nome e um celular válido com DDD.';return}
     button.disabled=true;$('#signup').disabled=true;$('#google-signin').disabled=true;
     try{
+      if(creating){
+        const readiness=await fetch('api.php?action=account-consent-registration-status',{cache:'no-store'});
+        let readinessData={};try{readinessData=await readiness.json()}catch{}
+        if(!readiness.ok||readinessData.available!==true)throw new Error(readinessData.error||'O cadastro está temporariamente indisponível. Tente novamente mais tarde.');
+      }
       const result=await (creating?sdk.createUserWithEmailAndPassword:sdk.signInWithEmailAndPassword)(auth,$('#email').value.trim(),$('#password').value);setAuthenticatedUser(result.user);
       if(!await ensureAccountConsent())throw new Error('O acesso às funções da plataforma depende da confirmação dos documentos vigentes.');
       if(creating){
