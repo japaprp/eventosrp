@@ -35,7 +35,7 @@ assert.equal(element('#count').textContent, '0 espaços encontrados');
 assert.match(element('#cards').innerHTML, /Ainda não há espaços publicados/);
 context.fetch = async () => ({ok:true, json:async()=>fixtures});
 await vm.runInContext('refreshCatalogue()', context);
-assert.equal(element('#count').textContent,'3 espaços encontrados');
+assert.equal(element('#count').textContent,'3 espaços encontrados');assert.ok(element('#location').innerHTML.includes('Ribeirão Preto'));assert.ok(element('#location').innerHTML.includes('Campinas'));assert.ok(!element('#location').innerHTML.includes('São Paulo'));
 element('#location').value='Ribeirão Preto';vm.runInContext('render()',context);assert.equal(element('#count').textContent,'2 espaços encontrados');
 element('#capacity').value='200';vm.runInContext('render()',context);assert.equal(element('#count').textContent,'1 espaço encontrado');
 vm.runInContext("type='Ao ar livre';render()",context);assert.equal(element('#empty').hidden,false);
@@ -50,7 +50,7 @@ element('#plan').value='daily';element('#check-in').value='2030-01-04T09:00';ele
 element('#plan').value='weekend';element('#plan').onchange();assert.equal(element('#check-out').value,'2030-01-06T09:00');assert.match(element('#quote').innerHTML,/2 diárias/);
 element('#check-out').value='2030-01-07T09:00';element('#check-out').oninput();assert.match(element('#quote').innerHTML,/3 diárias/);assert.match(element('#quote').innerHTML,/5\.400/);
 element('#check-out').value='2030-01-05T18:00';element('#check-out').oninput();assert.equal(element('#check-out').value,'2030-01-05T09:00');assert.match(element('#quote').textContent,/pelo menos 48 horas/);
-assert.ok(fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8').includes('<option>Ribeirão Preto</option>'));assert.ok(!fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8').includes('images.unsplash.com'));assert.ok(!fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8').includes('images.unsplash.com'));assert.ok(source.includes('upload-space-photo'));assert.ok(source.includes('delete-space-photo'));assert.ok(source.includes('accept-reservation-terms'));
+const html=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8');assert.ok(html.includes('<select id="location"><option value="">Todas as localizações</option></select>'));assert.ok(!html.includes('<option>Ribeirão Preto</option>'));assert.ok(!html.includes('São Paulo</option>'));assert.ok(!html.includes('Campinas</option>'));assert.ok(!html.includes('São José dos Campos</option>'));assert.ok(!html.includes('images.unsplash.com'));assert.ok(!fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8').includes('images.unsplash.com'));assert.ok(source.includes('upload-space-photo'));assert.ok(source.includes('delete-space-photo'));assert.ok(source.includes('accept-reservation-terms'));
 assert.ok(!source.includes('onrender.com'),'Firebase errors must not direct users to the retired Render domain');
 assert.ok(source.includes('eventosrp-production.up.railway.app'),'Firebase errors must identify the current Railway domain');
 const firebaseRules = JSON.parse(fs.readFileSync(new URL('../database.rules.json', import.meta.url), 'utf8'));
@@ -60,7 +60,7 @@ assert.ok(chatRules.$messageId['.write'].includes('!data.exists()'),'Chat messag
 assert.ok(chatRules.$messageId['.write'].includes('auth.uid'),'Chat writes must require an authenticated member');
 assert.ok(chatRules.$messageId['.validate'].includes('sender'),'Chat messages must validate the authenticated sender');
 assert.ok(chatRules.$messageId['.validate'].includes('1000'),'Chat messages must enforce the 1000-character limit');
-assert.ok(source.includes('terms_accepted:'));
+assert.ok(source.includes('terms_accepted:'));assert.ok(source.includes('Termos de uso — aviso provisório'));assert.ok(source.includes('Privacidade — aviso provisório'));assert.ok(!source.includes('Pagamentos são processados via Mercado Pago.'));assert.ok(!source.includes('Não compartilhamos dados com terceiros'));
 vm.runInContext('passwordReset("cliente@example.com")',context);assert.equal(element('#reset-email').value,'cliente@example.com');assert.match(element('#modal-content').innerHTML,/Enviar link/);assert.ok(!element('#modal-content').innerHTML.includes('type="password"'));
 let resetEmail=null;context.recordReset=email=>{resetEmail=email};vm.runInContext('auth={};sdk={sendPasswordResetEmail:async(a,email)=>recordReset(email)}',context);await element('#reset-form').onsubmit({preventDefault(){}});assert.equal(resetEmail,'cliente@example.com');
 vm.runInContext("user={uid:'titular'};spaceForm()",context);assert.equal(element('#space-city').value,'');assert.equal(element('#space-in').value,'');assert.equal(element('#space-out').value,'');assert.equal(element('#space-active').checked,false);assert.equal(element('#space-type').value,'');assert.equal(element('#space-capacity').value,'');assert.equal(element('#space-price').value,'');assert.match(element('#modal-content').innerHTML,/Preparação entre reservas/);assert.match(element('#modal-content').innerHTML,/data-space-amenity/);assert.match(element('#modal-content').innerHTML,/type=\"file\"/);assert.match(element('#modal-content').innerHTML,/space-owner-authorized/);
