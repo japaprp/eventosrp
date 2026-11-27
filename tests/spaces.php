@@ -26,11 +26,21 @@ $valid = [
     'owner_authorized' => true,
 ];
 $data = validateSpace($valid, hash('sha256', 'owner-a'));
-if ($data['daily_price'] !== '1000.55' || $data['cleanup_minutes'] !== 120 || $data['active'] !== 1) {
+if ($data['daily_price'] !== '1000.55' || $data['cleanup_minutes'] !== 120 || $data['active'] !== 0) {
     throw new RuntimeException('Cadastro normalizado incorretamente.');
 }
 if ($data['owner_authorization_version'] !== SPACE_AUTHORIZATION_VERSION || $data['owner_authorization_snapshot'] !== SPACE_AUTHORIZATION_TEXT || !$data['owner_authorized_at']) {
     throw new RuntimeException('A autorização do proprietário não foi registrada.');
+}
+
+if (spaceOwnerPublicationState('pending', true) !== 0) {
+    throw new RuntimeException('A solicitação de publicação não pode ativar o anúncio antes da aprovação administrativa.');
+}
+if (spaceOwnerPublicationState('rejected', true) !== 0 || spaceOwnerPublicationState('none', true) !== 0) {
+    throw new RuntimeException('Somente proprietários aprovados podem publicar espaços.');
+}
+if (spaceOwnerPublicationState('approved', false) !== 0 || spaceOwnerPublicationState('approved', true) !== 1) {
+    throw new RuntimeException('O proprietário aprovado deve poder manter o anúncio pausado ou solicitar sua publicação.');
 }
 
 $cases = [
