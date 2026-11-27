@@ -22,7 +22,7 @@
 | Health check Railway | `/health.php` e `/ready.php` existem no PR #19, não no commit implantado da `main`; o deployment atual está `SLEEPING` | BLOCKED — requer homologação após publicação autorizada |
 | Segredos | Nomes das variáveis visíveis; valores redigidos | PASS — segredos não foram lidos nem expostos |
 
-O serviço MySQL e o volume original continuam existindo. O deployment atual foi executado com sucesso, o log confirmou inicialização completa e `ready for connections`, mas o Railway enviou sinal de shutdown após inatividade. Na leitura mais recente, app e MySQL estavam `SLEEPING`; não considerar a infraestrutura ativa.
+O serviço MySQL e o volume original continuam existindo. O deployment atual foi executado com sucesso, o log confirmou inicialização completa e `ready for connections`, mas o Railway enviou sinal de shutdown após inatividade. Na leitura mais recente, app e MySQL estavam `SLEEPING` com `sleepApplication=true` (Serverless). Isso é um estado de repouso, não remoção: o Railway acorda o serviço na próxima requisição/conexão. A primeira chamada pode ter cold start e ocasionalmente 502; homologar o comportamento antes da abertura comercial.
 
 ## 2. Estado observado e causa operacional atual
 
@@ -65,7 +65,7 @@ docker-entrypoint.sh mysqld --innodb-use-native-aio=0 --disable-log-bin --perfor
    - confirmar tamanho, hash e restauração em MySQL descartável.
 5. Executar primeiro `database/preflight_readonly.sql` (somente leitura) e comparar schema, tabelas, índices, chaves estrangeiras e contagens de registros na restauração.
 6. Somente após backup restaurável, validar migrações 002–007 em banco descartável e depois planejar a aplicação controlada no banco real.
-7. Para cliente MySQL externo, usar o TCP Proxy ativo `switchyard.proxy.rlwy.net:48927` somente para diagnóstico controlado; nunca registrar senha em logs/issues/chat. Para app→MySQL no mesmo projeto Railway, validar o hostname privado e manter o tráfego na rede privada, sem assumir o valor de `DB_HOST` antes de conferir as variáveis.
+7. Para app→MySQL no mesmo projeto/ambiente, usar rede privada Railway. O endpoint privado configurado para MySQL é `mysql`, portanto o hostname interno esperado é `mysql.railway.internal` na porta `3306`; confirmar resolução e handshake antes de ajustar `DB_HOST`. Preferir referências Railway `MYSQLHOST`, `MYSQLPORT`, `MYSQLDATABASE`, `MYSQLUSER` e `MYSQLPASSWORD` para as variáveis `DB_*`. Para cliente externo, preferir `railway connect MySQL --tunnel-only` e usar o túnel local; o TCP Proxy `switchyard.proxy.rlwy.net:48927` fica como alternativa de diagnóstico e pode gerar egress. Nunca registrar senha em logs/issues/chat.
 8. Após publicar o PR em ambiente de homologação autorizado e resolver a política de sleep, testar `/health.php` (liveness) e `/ready.php` (readiness MySQL), `SELECT 1`, catálogo, cadastro, upload e reservas. Pagamentos permanecem reservados para a última etapa.
 
 A documentação do Railway confirma que o volume é persistente entre deployments; o deploy do container não deve ser confundido com apagar o volume. Ainda assim, o backup lógico é obrigatório antes de qualquer migração.
@@ -87,4 +87,4 @@ Para tornar a infraestrutura utilizável pelo cliente, ainda é necessário conf
 - crédito de uso restante no ciclo;
 - se a página do serviço MySQL permite iniciar o deployment sem solicitar upgrade.
 
-Também é necessário decidir se o plano atual permite manter app e banco ativos sem sleep. Se exigir upgrade ou cobrança, parar e pedir autorização; não aceitar upgrade automaticamente.
+Se a operação exigir disponibilidade sem cold start, desabilitar Serverless ou mudar o plano pode gerar custo; não fazer sem autorização. No plano Free, o Railway oferece crédito mensal limitado e coloca serviços inativos em sleep; a primeira requisição acorda o serviço. Verifique Usage e limites antes de qualquer alteração.
