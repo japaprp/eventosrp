@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'src/bootstrap.php'
+      - 'src/database_retry.php'
       - 'public/api.php'
       - 'src/booking.php'
       - 'src/payment_lifecycle.php'
@@ -75,6 +76,7 @@ jobs:
       - name: Lint HTTP test harness and endpoint dependencies
         run: |
           php -l src/bootstrap.php
+          php -l src/database_retry.php
           php -l tests/http/prepend.php
           php -l tests/http/concurrent_booking.php
           php -l tests/http/space_owner_isolation.php
