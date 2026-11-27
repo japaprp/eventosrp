@@ -77,6 +77,7 @@ jobs:
           mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -proot eventosrp_legacy_preflight < database/preflight_readonly.sql
       - name: Lint HTTP test harness and endpoint dependencies
         run: |
+          php -l src/account_consent.php
           php -l src/bootstrap.php
           php -l src/database_retry.php
           php -l tests/http/prepend.php
