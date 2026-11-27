@@ -1,6 +1,6 @@
 # Controle de cadastro e consentimento — especificação técnica
 
-**Status:** especificação; não implantado  
+**Status:** implementação na branch de homologação; não publicada em produção  
 **Data:** 27/11/2026  
 **Escopo:** cadastro, autenticação, consentimento de Termos de Uso e Política de Privacidade no Reservas RP.
 
@@ -20,7 +20,19 @@ A inspeção foi feita na branch `delivery/2026-11-27-production-readiness`, HEA
 
 O checkbox no navegador não é uma fronteira de segurança. A validação precisa ocorrer no servidor e ser vinculada ao UID autenticado e às versões vigentes dos documentos.
 
-## 3. Arquitetura proposta
+## 3. Implementação técnica na branch de homologação
+
+A primeira implementação foi adicionada à branch `delivery/2026-11-27-production-readiness`:
+
+- `src/account_consent.php` valida versões documentais limitadas e URLs HTTPS sem credenciais ou fragmentos; requisitos ausentes/inválidos retornam configuração indisponível.
+- `database/migrations/010_account_consents.sql` cria tabela de auditoria com FK, unicidade por usuário/versões e índice temporal. O código usa `INSERT IGNORE` e não oferece atualização/exclusão do histórico.
+- `public/api.php` expõe `GET account-consent-requirements`, `GET account-consent-status` e `POST account-consent`; registra timestamp do MySQL e aplica bloqueio centralizado antes de rotas de negócio, inclusive upload de fotos.
+- `public/app.js` solicita confirmação dos documentos vigentes tanto no login por e-mail/senha quanto no Google; o antigo checkbox que apontava para avisos provisórios foi removido.
+- O adaptador HTTP isolado usa versões e URLs sintéticas `.invalid` somente quando `eventosrpHttpTestMode()` confirma o banco descartável e os demais marcadores de teste.
+
+**Limite de validação:** os arquivos e testes foram adicionados, mas a execução de CI desta revisão ainda precisa terminar. A migration está preparada, não aplicada em nenhum banco.
+
+## 4. Arquitetura e contrato
 
 ### 3.1 Fonte de verdade no servidor
 
@@ -65,7 +77,7 @@ Não registrar IP, localização ou outros dados de rastreamento sem necessidade
 
 **Limite conhecido:** Firebase Authentication Blocking Functions podem impedir a criação antes de o usuário ser salvo, mas a documentação oficial exige upgrade para Firebase Authentication with Identity Platform. A função `beforeUserCreated` também afeta os fluxos de criação de usuários do projeto Firebase. Portanto, não ativar nem solicitar upgrade sem avaliação de custo, impacto em todos os provedores e autorização explícita. A barreira de negócio no backend continua obrigatória mesmo se esse recurso vier a ser adotado.
 
-## 4. Testes obrigatórios
+## 5. Testes obrigatórios
 
 1. Sem versões/URLs documentais configuradas: API falha fechada e não libera rotas de negócio.
 2. URL HTTP, vazia ou inválida: configuração recusada.
@@ -80,7 +92,7 @@ Não registrar IP, localização ou outros dados de rastreamento sem necessidade
 11. Usuário sem consentimento não consegue reservar, publicar/editar espaço, enviar foto, acessar chat ou consultar dados privados.
 12. Aceite de reserva continua exigido separadamente.
 
-## 5. Dependências e sequência segura
+## 6. Dependências e sequência segura
 
 1. Confirmar operador legal, contato, conteúdo final dos documentos, bases legais, finalidades, dados, compartilhamentos/transferências, retenção, direitos, cancelamento e reembolso.
 2. Revisar e aprovar os documentos; publicar URLs HTTPS e fixar versões imutáveis.
@@ -90,7 +102,7 @@ Não registrar IP, localização ou outros dados de rastreamento sem necessidade
 6. Configurar versões/URLs somente após os documentos estarem efetivamente publicados.
 7. Fazer homologação completa; produção somente após backup restaurável, preflight e autorização de release.
 
-## 6. Restrições atuais
+## 7. Restrições atuais
 
 - Não há confirmação documental suficiente para definir o operador legal ou publicar termos finais.
 - Não há backup lógico/restauração comprovados do MySQL de produção; as ferramentas de backup do Railway não estão habilitadas para a conta.
