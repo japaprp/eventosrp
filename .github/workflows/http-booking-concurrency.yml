@@ -68,6 +68,10 @@ jobs:
       - name: Validate read-only database preflight
         run: |
           mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -proot eventosrp_http_test < database/preflight_readonly.sql
+      - name: Verify preflight against a partial legacy schema
+        run: |
+          mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -proot -e "CREATE DATABASE eventosrp_legacy_preflight; CREATE TABLE eventosrp_legacy_preflight.users (id BIGINT PRIMARY KEY); CREATE TABLE eventosrp_legacy_preflight.spaces (id BIGINT PRIMARY KEY); CREATE TABLE eventosrp_legacy_preflight.reservations (id CHAR(32) PRIMARY KEY, status VARCHAR(16));"
+          mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -proot eventosrp_legacy_preflight < database/preflight_readonly.sql
       - name: Lint HTTP test harness and endpoint dependencies
         run: |
           php -l src/bootstrap.php
