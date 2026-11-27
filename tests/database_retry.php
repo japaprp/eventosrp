@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require dirname(__DIR__) . '/src/bootstrap.php';
+require dirname(__DIR__) . '/src/database_retry.php';
 
 $cases = [
     ['HY000', 2002, true, 'connection refused is transient'],
