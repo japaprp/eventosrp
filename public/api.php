@@ -41,7 +41,7 @@ function paymentLifecycleApplyVerifiedPayment(PDO $pdo, string $reservationId, a
   $existingId=isset($reservation['payment_id'])?(string)$reservation['payment_id']:null;
   $conflict=false;
   if($status==='approved'&&$reservation['status']==='pending'){
-   $q=$pdo->prepare("SELECT id FROM reservations WHERE space_id=? AND id<>? AND check_in < ? AND blocked_until > ? AND status IN ('creating','pending','approved') LIMIT 1");
+   $q=$pdo->prepare("SELECT id FROM reservations WHERE space_id=? AND id<>? AND check_in < ? AND blocked_until > ? AND status IN ('creating','requested','confirmed','pending','approved') LIMIT 1");
    $q->execute([$reservation['space_id'],$reservationId,$reservation['blocked_until'],$reservation['check_in']]);$conflict=(bool)$q->fetchColumn();
   }
   $decision=($status==='approved'&&$reservation['status']==='pending'&&$reservation['payment_attention']!=='none')?'refund_required':paymentLifecycleDecision((string)$reservation['status'],$status,$existingId,$paymentId,$conflict);
