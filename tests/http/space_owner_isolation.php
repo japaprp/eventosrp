@@ -25,6 +25,16 @@ function apiRequest(string $base, string $action, string $token, string $method 
     return [$status, json_decode((string)$response, true), (string)$response];
 }
 
+$rulesPath = dirname(__DIR__, 2) . '/database.rules.json';
+$rules = json_decode((string) file_get_contents($rulesPath), true, 512, JSON_THROW_ON_ERROR);
+$chatRules = $rules['rules']['chats']['$reservationId']['messages'] ?? null;
+if (!is_array($chatRules)
+    || !str_contains((string)($chatRules['.read'] ?? ''), 'members')
+    || !str_contains((string)($chatRules['$messageId']['.write'] ?? ''), '!data.exists()')
+    || !str_contains((string)($chatRules['$messageId']['.validate'] ?? ''), 'auth.uid')) {
+    failTest('Firebase chat rules must enforce member-only reads, append-only writes and authenticated sender validation.');
+}
+
 $base = rtrim(getenv('HTTP_TEST_BASE_URL') ?: 'http://127.0.0.1:8088', '/');
 $ownerA = 'isolated-http-test-owner-a';
 $ownerB = 'isolated-http-test-owner-b';
