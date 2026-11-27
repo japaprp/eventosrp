@@ -272,10 +272,11 @@ try {
  if($action==='save-space'){
   if((int)($_SERVER['CONTENT_LENGTH']??0)>40000)respond(['error'=>'Solicitação muito grande.'],413);
   $input=json_decode(file_get_contents('php://input'),true,512,JSON_THROW_ON_ERROR);if(!is_array($input))respond(['error'=>'Dados inválidos.'],400);
-  $q=$pdo->prepare('SELECT owner_status FROM users WHERE id=?');$q->execute([$userId]);$ownerStatus=(string)$q->fetchColumn();
+  $pdo->beginTransaction();
+  $q=$pdo->prepare('SELECT owner_status FROM users WHERE id=? FOR UPDATE');$q->execute([$userId]);$ownerStatus=(string)$q->fetchColumn();
   if($ownerStatus!=='approved'){$q=$pdo->prepare("UPDATE users SET owner_status='pending' WHERE id=? AND owner_status IN ('none','rejected')");$q->execute([$userId]);$ownerStatus='pending';}
-  try{$data=validateSpace($input,hash('sha256',$uid),$ownerStatus);}catch(InvalidArgumentException $e){respond(['error'=>$e->getMessage()],422);}
-  $id=$input['id']??null;$oldPhotos=[];$pdo->beginTransaction();
+  try{$data=validateSpace($input,hash('sha256',$uid),$ownerStatus);}catch(InvalidArgumentException $e){$pdo->rollBack();respond(['error'=>$e->getMessage()],422);}
+  $id=$input['id']??null;$oldPhotos=[];
   if($id!==null){
    if(!filter_var($id,FILTER_VALIDATE_INT)||$id<1){$pdo->rollBack();respond(['error'=>'Espaço inválido.'],422);}
    $q=$pdo->prepare('SELECT id,photos FROM spaces WHERE id=? AND owner_id=? FOR UPDATE');$q->execute([$id,$userId]);$existingSpace=$q->fetch(PDO::FETCH_ASSOC);
