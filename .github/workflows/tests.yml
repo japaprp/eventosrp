@@ -23,7 +23,7 @@ jobs:
           extensions: curl, mbstring, pdo_mysql
           coverage: none
       - name: Lint API and payment lifecycle
-        run: php -l public/api.php && php -l src/payment_lifecycle.php && php -l src/cloudinary.php && php -l src/spaces.php && php -l src/booking.php && php -l public/health.php && php -l public/ready.php
+        run: php -l public/api.php && php -l src/bootstrap.php && php -l src/payment_lifecycle.php && php -l src/cloudinary.php && php -l src/spaces.php && php -l src/booking.php && php -l public/health.php && php -l public/ready.php
       - name: Test booking rules
         run: php tests/booking.php
       - name: Test space validation
@@ -32,6 +32,8 @@ jobs:
         run: php tests/payment_lifecycle.php
       - name: Test Cloudinary signing and owner isolation
         run: php tests/cloudinary.php
+      - name: Test transient MySQL connection retry classification
+        run: php tests/database_retry.php
 
   frontend-tests:
     name: Frontend regression tests
