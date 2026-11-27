@@ -186,7 +186,7 @@ function reservation(s) {
       button.disabled=true;
       const data=await api('reserve',{method:'POST',body:JSON.stringify({space_id:s.id,check_in:$('#check-in').value,check_out:$('#check-out').value,plan:$('#plan').value,contact_name:$('#contact-name').value.trim(),guests:Number($('#guests').value),phone:$('#phone').value.trim(),message:$('#message').value.trim(),terms_accepted:$('#accept-reservation-terms').checked})});
       if(config.paymentsEnabled){
-        const target=new URL(data.checkout_url);if(target.protocol!=='https:'||!/(^|\\.)mercadopago\\.(com|com\\.br)$/.test(target.hostname))throw new Error('Endereço de pagamento inválido.');location.href=data.checkout_url;
+        const target=new URL(data.checkout_url);if(target.protocol!=='https:'||!/(^|\.)mercadopago\.(com|com\.br)$/.test(target.hostname))throw new Error('Endereço de pagamento inválido.');location.href=data.checkout_url;
       }else{
         if(data.status!=='requested'||data.checkout_url)throw new Error('O servidor retornou um estado de solicitação inesperado.');
         modal('<h2>Solicitação enviada.</h2><p>O proprietário recebeu seu pedido. Não houve cobrança. Acompanhe a resposta em Minhas reservas e use a conversa para esclarecer os detalhes.</p><button class="primary" id="view-requests">Ver minhas solicitações</button>');
