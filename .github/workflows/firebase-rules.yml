@@ -1,0 +1,21 @@
+name: Firebase Realtime Database rules
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  rules-emulator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Install isolated Firebase test tooling
+        run: npm install --no-save --package-lock=false firebase@12.6.0 @firebase/rules-unit-testing@5.0.0 firebase-tools@14.22.0
+      - name: Validate Realtime Database rules in emulator
+        run: npx firebase emulators:exec --only database --project demo-reservas-rp "node tests/firebase-rules.mjs"
