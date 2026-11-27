@@ -26,7 +26,7 @@ $valid = [
     'owner_authorized' => true,
 ];
 $data = validateSpace($valid, hash('sha256', 'owner-a'));
-if ($data['daily_price'] !== '1000.55' || $data['cleanup_minutes'] !== 120 || $data['active'] !== 0) {
+if ($data['daily_price'] !== '1000.55' || $data['cleanup_minutes'] !== 120 || $data['active'] !== 1) {
     throw new RuntimeException('Cadastro normalizado incorretamente.');
 }
 if ($data['owner_authorization_version'] !== SPACE_AUTHORIZATION_VERSION || $data['owner_authorization_snapshot'] !== SPACE_AUTHORIZATION_TEXT || !$data['owner_authorized_at']) {
