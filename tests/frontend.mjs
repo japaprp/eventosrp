@@ -41,7 +41,7 @@ element('#capacity').value='200';vm.runInContext('render()',context);assert.equa
 vm.runInContext("type='Ao ar livre';render()",context);assert.equal(element('#empty').hidden,false);
 element('#location').value='Campinas';element('#capacity').value='0';element('#event').value='Corporativo';vm.runInContext("type='';render()",context);assert.equal(element('#count').textContent,'1 espaço encontrado');
 vm.runInContext('login()',context);assert.match(element('#modal-content').innerHTML,/autocomplete="name"/);assert.match(element('#modal-content').innerHTML,/id="signup-phone"/);
-element('#signup').onclick();assert.equal(element('#signup-name').required,true);assert.equal(element('#signup-name').disabled,false);assert.ok(!element('#modal-content').innerHTML.includes('id="accept-account"'));assert.equal(element('#password').autocomplete,'new-password');
+element('#signup').onclick();assert.equal(element('#signup-name').required,true);assert.equal(element('#signup-name').disabled,false);assert.ok(!element('#modal-content').innerHTML.includes('id="accept-account"'));assert.ok(!source.includes('signup-consent'));assert.equal(element('#password').autocomplete,'new-password');
 element('#signup').onclick();assert.equal(element('#signup-name').disabled,true);assert.equal(element('#password').autocomplete,'current-password');
 assert.ok(source.includes('async function ensureAccountConsent()'));assert.ok(source.includes("api('account-consent')"));assert.equal(vm.runInContext("validPhone('(16) 99999-9999')",context),true);assert.equal(vm.runInContext("validPhone('123')",context),false);
 vm.runInContext("user={uid:'titular'};profile={name:'Cliente de teste',phone:'(16) 99999-9999'};reservation(spaces[0])",context);
