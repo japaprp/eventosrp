@@ -4,6 +4,7 @@ header('Content-Type: application/json; charset=utf-8');header('Cache-Control: n
 if(!is_file(dirname(__DIR__).'/vendor/autoload.php'))respondUnavailable();
 function respondUnavailable(): never { http_response_code(503);echo '{"error":"Servidor em configuração. Instale as dependências PHP e configure as credenciais."}';exit; }
 require dirname(__DIR__).'/src/bootstrap.php';
+require dirname(__DIR__).'/src/account_consent.php';
 require dirname(__DIR__).'/src/booking.php';
 require dirname(__DIR__).'/src/spaces.php';
 require dirname(__DIR__).'/src/payment_lifecycle.php';
@@ -180,8 +181,8 @@ try {
   $remaining->execute([$now]);
   respond(['received'=>true,'attempted'=>count($due),'remaining_due'=>(int)$remaining->fetchColumn()]);
  }
- if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations','upload-space-photo','delete-space-photo','chat-access','owner-requests','review-owner','review-reservation'],true))respond(['error'=>'Rota não encontrada.'],404);
- if((in_array($action,['my-spaces','host-reservations','owner-requests'],true)&&$method!=='GET')||(in_array($action,['save-space','upload-space-photo','delete-space-photo','chat-access','review-owner','review-reservation'],true)&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
+ if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations','upload-space-photo','delete-space-photo','chat-access','owner-requests','review-owner','review-reservation','account-consent-requirements','account-consent-status','account-consent'],true))respond(['error'=>'Rota não encontrada.'],404);
+ if((in_array($action,['my-spaces','host-reservations','owner-requests','account-consent-requirements','account-consent-status'],true)&&$method!=='GET')||(in_array($action,['save-space','upload-space-photo','delete-space-photo','chat-access','review-owner','review-reservation','account-consent'],true)&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
  if(($action==='reserve'&&$method!=='POST')||($action==='reservations'&&$method!=='GET')||($action==='profile'&&!in_array($method,['GET','POST'],true)))respond(['error'=>'Método não permitido.'],405);
  $header=$_SERVER['HTTP_AUTHORIZATION']??'';if(!preg_match('/^Bearer (.+)$/',$header,$match))respond(['error'=>'Entre na sua conta.'],401);
  try{$token=firebase()->createAuth()->verifyIdToken($match[1],true);}catch(Throwable $e){respond(['error'=>'Sessão inválida. Entre novamente.'],401);}
@@ -195,7 +196,20 @@ try {
  }
  $pdo=database();
  $q=$pdo->prepare('INSERT INTO users(firebase_uid,email) VALUES (?,?) ON DUPLICATE KEY UPDATE email=VALUES(email)');$q->execute([$uid,$email]);
- $q=$pdo->prepare('SELECT id FROM users WHERE firebase_uid=?');$q->execute([$uid]);$userId=$q->fetchColumn();
+ $q=$pdo->prepare('SELECT id FROM users WHERE firebase_uid=?');$q->execute([$uid]);$userId=(int)$q->fetchColumn();
+ $consentRequirements=accountConsentRequirements();
+ if($consentRequirements===null)respond(['error'=>'Cadastro e operações autenticadas temporariamente indisponíveis enquanto os documentos oficiais não estiverem configurados.','code'=>'ACCOUNT_CONSENT_CONFIGURATION_UNAVAILABLE'],503);
+ if($action==='account-consent-requirements')respond($consentRequirements);
+ if($action==='account-consent-status')respond(['accepted'=>accountConsentIsCurrent($pdo,$userId,$consentRequirements)]);
+ if($action==='account-consent'){
+  if((int)($_SERVER['CONTENT_LENGTH']??0)>5000)respond(['error'=>'Solicitação muito grande.'],413);
+  try{$input=json_decode(file_get_contents('php://input'),true,512,JSON_THROW_ON_ERROR);}catch(Throwable){respond(['error'=>'Dados de consentimento inválidos.'],400);}
+  if(!is_array($input)||($input['accepted']??false)!==true)respond(['error'=>'Confirme explicitamente a leitura dos documentos para continuar.'],422);
+  if(($input['terms_version']??null)!==$consentRequirements['terms_version']||($input['privacy_version']??null)!==$consentRequirements['privacy_version'])respond(['error'=>'Os documentos foram atualizados. Recarregue a página e confira as versões vigentes.','code'=>'ACCOUNT_CONSENT_VERSION_MISMATCH'],409);
+  try{$acceptedAt=accountConsentAccept($pdo,$userId,$consentRequirements);}catch(Throwable $error){error_log('Encontro account consent persistence failed: '.get_class($error));respond(['error'=>'Não foi possível registrar o consentimento. Tente novamente.'],503);}
+  respond(['accepted'=>true,'terms_version'=>$consentRequirements['terms_version'],'privacy_version'=>$consentRequirements['privacy_version'],'accepted_at'=>$acceptedAt]);
+ }
+ if(!accountConsentIsCurrent($pdo,$userId,$consentRequirements))respond(['error'=>'Para continuar, confira e aceite a versão vigente dos Termos de Uso e da Política de Privacidade.','code'=>'ACCOUNT_CONSENT_REQUIRED'],403);
  $platformAdminUid=env('PLATFORM_ADMIN_FIREBASE_UID');
  $isPlatformAdmin=$platformAdminUid!==''&&hash_equals($platformAdminUid,(string)$uid);
  if($action==='owner-requests'){
