@@ -178,8 +178,8 @@ try {
   $remaining->execute([$now]);
   respond(['received'=>true,'attempted'=>count($due),'remaining_due'=>(int)$remaining->fetchColumn()]);
  }
- if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations','upload-space-photo','delete-space-photo'],true))respond(['error'=>'Rota não encontrada.'],404);
- if((in_array($action,['my-spaces','host-reservations'],true)&&$method!=='GET')||(in_array($action,['save-space','upload-space-photo','delete-space-photo'],true)&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
+ if(!in_array($action,['reservations','reserve','profile','my-spaces','save-space','host-reservations','upload-space-photo','delete-space-photo','chat-access'],true))respond(['error'=>'Rota não encontrada.'],404);
+ if((in_array($action,['my-spaces','host-reservations'],true)&&$method!=='GET')||(in_array($action,['save-space','upload-space-photo','delete-space-photo','chat-access'],true)&&$method!=='POST'))respond(['error'=>'Método não permitido.'],405);
  if(($action==='reserve'&&$method!=='POST')||($action==='reservations'&&$method!=='GET')||($action==='profile'&&!in_array($method,['GET','POST'],true)))respond(['error'=>'Método não permitido.'],405);
  $header=$_SERVER['HTTP_AUTHORIZATION']??'';if(!preg_match('/^Bearer (.+)$/',$header,$match))respond(['error'=>'Entre na sua conta.'],401);
  try{$token=firebase()->createAuth()->verifyIdToken($match[1],true);}catch(Throwable $e){respond(['error'=>'Sessão inválida. Entre novamente.'],401);}
@@ -194,6 +194,19 @@ try {
  $pdo=database();
  $q=$pdo->prepare('INSERT INTO users(firebase_uid,email) VALUES (?,?) ON DUPLICATE KEY UPDATE email=VALUES(email)');$q->execute([$uid,$email]);
  $q=$pdo->prepare('SELECT id FROM users WHERE firebase_uid=?');$q->execute([$uid]);$userId=$q->fetchColumn();
+ if($action==='chat-access'){
+  if(!requestIsSecure())respond(['error'=>'HTTPS obrigatório.'],400);
+  if((int)($_SERVER['CONTENT_LENGTH']??0)>5000)respond(['error'=>'Solicitação muito grande.'],413);
+  $input=json_decode(file_get_contents('php://input'),true,512,JSON_THROW_ON_ERROR);
+  $reservationId=$input['reservation_id']??'';
+  if(!is_string($reservationId)||!preg_match('/^[a-f0-9]{32}$/',$reservationId))respond(['error'=>'Reserva inválida.'],422);
+  $q=$pdo->prepare('SELECT r.id FROM reservations r JOIN spaces s ON s.id=r.space_id WHERE r.id=? AND (r.user_id=? OR s.owner_id=?) LIMIT 1');
+  $q->execute([$reservationId,$userId,$userId]);
+  if(!$q->fetchColumn())respond(['error'=>'Conversa não encontrada para esta conta.'],404);
+  try{firebase()->createDatabase()->getReference('chats/'.$reservationId.'/members/'.$uid)->set(true);}
+  catch(Throwable $e){error_log('Encontro chat membership: '.get_class($e));respond(['error'=>'Não foi possível autorizar a conversa agora.'],503);}
+  respond(['authorized'=>true]);
+ }
  if($action==='delete-space-photo'){
   if(!requestIsSecure())respond(['error'=>'HTTPS obrigatório.'],400);
   if((int)($_SERVER['CONTENT_LENGTH']??0)>5000)respond(['error'=>'Solicitação muito grande.'],413);
